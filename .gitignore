@@ -137,3 +137,34 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# =========================
+# === AJOUTS SPÉCIFIQUES ===
+# =========================
+
+# === ENVIRONNEMENT ===
+.env
+*.env.local
+
+# === NODE ===
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# === EXPO / REACT NATIVE ===
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
