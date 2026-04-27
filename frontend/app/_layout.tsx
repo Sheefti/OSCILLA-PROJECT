@@ -1,11 +1,3 @@
-/**
- * app/_layout.tsx — Root Layout
- * Point d'entrée Expo Router.
- * 
- * Volontairement minimaliste pour éviter les conflits Fabric (New Architecture).
- * Le verrouillage d'orientation et SafeAreaProvider sont ici — rien d'autre.
- */
-
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
