@@ -67,6 +67,9 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
     vel: '28.74', dist: '0.0034', diam: '~50m', mag: '24.5',
   };
 
+  // Ratio entre 0 et 1 — nombre pur, compatible New Architecture (Fabric)
+  const velRatio = Math.min(Math.max(vel / 40, 0), 1);
+
   return (
     <View style={styles.container}>
 
@@ -90,8 +93,10 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
           <Text style={styles.cardValue}>{vel.toFixed(2)}</Text>
           <Text style={styles.cardUnit}>km/s</Text>
         </View>
+        {/* ✅ FIX New Architecture : flex au lieu de width en % calculé dynamiquement */}
         <View style={styles.progressBg}>
-          <View style={[styles.progressFill, { width: `${(vel / 40) * 100}%` }]} />
+          <View style={[styles.progressFill, { flex: velRatio }]} />
+          <View style={{ flex: 1 - velRatio }} />
         </View>
       </View>
 
@@ -160,7 +165,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 8,
     gap: 5,
-  } as any,
+  },
 
   sectionTitle: {
     flexDirection: 'row',
@@ -230,9 +235,10 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     marginTop: 3,
     overflow: 'hidden',
+    flexDirection: 'row', // ✅ nécessaire pour que flex enfant fonctionne
   },
   progressFill: {
-    height: '100%' as any,
+    // flex est défini dynamiquement dans le JSX — pas de width ici
     backgroundColor: Colors.cyan,
   },
   orbLine: {

@@ -2,6 +2,7 @@
   "expo": {
     "name": "Oscilla",
     "slug": "oscilla",
+    "scheme": "oscilla",
     "version": "1.0.0",
     "orientation": "landscape",
     "backgroundColor": "#010810",
@@ -29,6 +30,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      ["expo-router", { "origin": "https://oscilla.app" }],
       "expo-font",
       [
         "expo-screen-orientation",

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text, Animated, Easing, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import OrbitalRadar from '../components/OrbitalRadar/OrbitalRadar';
 import LeftPanel from '../components/LeftPanel/LeftPanel';
 import { AsteroidData } from '../theme/asteroids';
@@ -97,11 +98,15 @@ export default function Dashboard() {
   const [selectedAsteroid, setSelectedAsteroid] = useState<AsteroidData | null>(null);
 
   const LEFT_WIDTH  = 200;
-  const RIGHT_WIDTH = selectedAsteroid ? 240 : 0;
   const TOPBAR_H    = 30;
   const BOTTOMBAR_H = 20;
   const H_MAIN      = H - TOPBAR_H - BOTTOMBAR_H;
-  const RADAR_WIDTH = W - LEFT_WIDTH - RIGHT_WIDTH - insets.left - insets.right;
+  const RADAR_WIDTH = W - LEFT_WIDTH - insets.left - insets.right;
+
+  function handleAsteroidPress(a: AsteroidData) {
+    setSelectedAsteroid(prev => prev?.id === a.id ? null : a);
+    router.push({ pathname: '/radar/details', params: { id: String(a.id) } });
+  }
 
   // Scanline
   const scanY = useRef(new Animated.Value(-2)).current;
@@ -123,9 +128,8 @@ export default function Dashboard() {
     ]}>
       <StatusBar hidden />
 
-      {/* Scanline */}
+      {/* Scanline (désactivation pointerEvents cause bug typage Fabric sur Animated.View, mis en wrapper ou ignoré) */}
       <Animated.View
-        pointerEvents="none"
         style={[styles.scanline, { transform: [{ translateY: scanY }] }]}
       />
 
@@ -142,14 +146,12 @@ export default function Dashboard() {
           <OrbitalRadar
             width={RADAR_WIDTH}
             height={H_MAIN}
-            onAsteroidPress={(a) => setSelectedAsteroid(prev => prev?.id === a.id ? null : a)}
+            onAsteroidPress={handleAsteroidPress}
             selectedId={selectedAsteroid?.id ?? -1}
           />
         </View>
 
-        {selectedAsteroid && (
-          <View style={[styles.rightPanel, { width: RIGHT_WIDTH }]} />
-        )}
+
       </View>
 
       {/* Bottombar */}
@@ -242,7 +244,7 @@ const bb = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: {
-    height: '100%' as any,
+    flex: 1,
     backgroundColor: Colors.cyan,
   },
 });
@@ -263,7 +265,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(0,229,255,0.1)',
     zIndex: 99,
-    pointerEvents: 'none' as any,
   },
   main: {
     flex: 1,
