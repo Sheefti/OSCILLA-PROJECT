@@ -65,6 +65,7 @@ Middleware proxy qui **cache la clé API NASA** et formate les données.
       "expo-router": "~4.0.17",
       "react": "19.1.0",
       "react-native": "0.81.5",
+      "@shopify/react-native-skia": "compatible SDK 54",
       "react-native-svg": "compatible SDK 54",
       "react-native-reanimated": "~4.1.1",
       "react-native-gesture-handler": "~2.28.0",
@@ -76,9 +77,10 @@ Middleware proxy qui **cache la clé API NASA** et formate les données.
 
 ### ⚠️ Décisions techniques importantes
 - **Navigation Immersive** : Remplacement de `App.tsx` par `expo-router` (dossier `app/`). Navigation de type "Zoom" d'une vue radar vers une vue détaillée.
-- **PAS de `@shopify/react-native-skia`** — incompatible avec Expo Go sans build natif.
+- **`@shopify/react-native-skia`** — inclus dans Expo Go depuis SDK 50+, **aucun build natif requis**. Installer UNIQUEMENT via `npx expo install @shopify/react-native-skia`.
 - **PAS de `expo-dev-client`** — pas de compte Apple Developer, crée conflits npm.
-- **Rendu graphique** : `react-native-svg` pour le radar et les animations 3D wireframe.
+- **Rendu graphique** : `@shopify/react-native-skia` pour `OrbitalRadar` et `WireframeModel` (thread UI natif JSI, 60 FPS). `react-native-svg` conservé pour d'éventuels autres usages.
+- **Fonts Skia** : `matchFont` système utilisé comme fallback. Intégration Orbitron/Share Tech Mono via expo-font prévue dans un second temps.
 - **Orientation** : verrouillée en Landscape via `expo-screen-orientation`.
 - **Safe Area** : `react-native-safe-area-context` pour gérer les encoches iPhone.
 - **Test sur device** : Expo Go via QR code (WiFi local).
@@ -146,11 +148,11 @@ Middleware proxy qui **cache la clé API NASA** et formate les données.
 Rotation PURE sans Gimbal Lock.
 
 ### 3. Radar Orbital (`OrbitalRadar`) ✅
-- `react-native-svg` avec `requestAnimationFrame` ou `setInterval` (60fps).
+- `@shopify/react-native-skia` avec `requestAnimationFrame` (60fps, thread UI natif).
 - Tri par profondeur (painter's algorithm).
 
-### 4. Modèle Wireframe 3D (`WireframeModel`) ⏳
-- Icosphère déformée procédurale en SVG.
+### 4. Modèle Wireframe 3D (`WireframeModel`) ✅
+- Icosphère déformée procédurale en Skia (mode déclaratif).
 - Rotation via quaternions purs.
 
 ---
@@ -167,5 +169,6 @@ Rotation PURE sans Gimbal Lock.
 | `app/_layout.tsx` | ✅ Fonctionnel | Setup Expo Router |
 | `app/index.tsx` | ✅ Fonctionnel | Dashboard principal |
 | `app/asteroid/[id].tsx` | ⏳ À faire | Écran immersif astéroïde |
-| `WireframeModel` | ⏳ À faire | Rendu 3D SVG (vue détaillée) |
+| `WireframeModel` | ✅ Migré Skia | Rendu 3D Skia déclaratif (80 faces) |
+| `OrbitalRadar` | ✅ Migré Skia | Radar Skia, gradients, clippath, RAF |
 | `useAsteroids` hook | ⏳ À faire | Fetch backend NASA |
