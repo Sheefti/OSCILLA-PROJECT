@@ -28,7 +28,6 @@ jobs:
         shell: bash
 
       - name: 🏗  Setup EAS
-        working-directory: ./frontend
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -38,3 +37,4 @@ jobs:
         working-directory: ./frontend
         run: eas update --auto
         shell: bash
+        EXPO_TOKEN: ${{ secrets.yly6hT5ul1_DNzkwSB6EZnVXxZTq_6d8wcycOs9a }}
