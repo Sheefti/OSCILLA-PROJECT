@@ -37,4 +37,5 @@ jobs:
         working-directory: ./frontend
         run: eas update --auto
         shell: bash
-        EXPO_TOKEN: ${{ secrets.yly6hT5ul1_DNzkwSB6EZnVXxZTq_6d8wcycOs9a }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
