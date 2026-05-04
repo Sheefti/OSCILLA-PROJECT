@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Oscilla",
-    "slug": "oscilla",
+    "slug": "oscilla-project",
     "scheme": "oscilla",
     "version": "1.0.0",
     "orientation": "landscape",
@@ -46,18 +46,18 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "fb80ada6-7e19-4d8d-997c-7d2cb29d564c"
+        "projectId": "a1c03794-cf96-4557-a500-f23279e83185"
       },
       "router": {
         "origin": "https://oscilla.app"
       }
     },
-    "owner": "sheefti",
+    "owner": "oscilla",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/fb80ada6-7e19-4d8d-997c-7d2cb29d564c"
+      "url": "https://u.expo.dev/a1c03794-cf96-4557-a500-f23279e83185"
     }
   }
 }
