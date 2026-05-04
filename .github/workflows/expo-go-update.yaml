@@ -36,6 +36,5 @@ jobs:
       - name: Update Expo Go
         working-directory: ./frontend
         run: eas update --auto
-        shell: bash
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
