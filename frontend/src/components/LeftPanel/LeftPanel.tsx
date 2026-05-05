@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { AsteroidData } from '../../theme/asteroids';
@@ -28,50 +28,37 @@ const INITIAL_LOGS: LogLine[] = [
   { id:11, text: '✔ 4 OBJETS TRACKÉS', type: 'ok' },
 ];
 
-const LOG_MESSAGES = [
-  '▶ MISE À JOUR TRAJECTOIRE',
-  '✔ SIGNAL NOMINAL',
-  '  CALCUL ORBITAL EN COURS',
-  '⚠ ANOMALIE DÉTECTÉE',
-  '✔ CORRECTION APPLIQUÉE',
-] as const;
-const LOG_TYPES: Array<'hi'|'ok'|'normal'|'wa'> = ['hi','ok','normal','wa','ok'];
-
 export default function LeftPanel({ selectedAsteroid }: Props) {
-  const [vel,   setVel]   = useState(28.74);
-  const [dist,  setDist]  = useState(0.0034);
-  const [logs,  setLogs]  = useState<LogLine[]>(INITIAL_LOGS);
+  const [vel, setVel]   = useState(28.74);
+  const [dist, setDist] = useState(0.0034);
+  const [logs, setLogs] = useState<LogLine[]>(INITIAL_LOGS);
   const [clock, setClock] = useState('--:--:--');
-
-  const tt      = useRef(0);
-  const logId   = useRef(20);
-  // Ref stable pour le ScrollView — ne recrée pas la fonction à chaque render
-  const scrollRef = useRef<ScrollView>(null);
+  const tt = useRef(0);
+  const logId = useRef(20);
 
   useEffect(() => {
-    // 250ms au lieu de 220ms — différence imperceptible, ~10% de renders en moins
     const id = setInterval(() => {
       tt.current++;
-      setVel(v  => 28.74  + Math.sin(tt.current * 0.04)  * 1.1);
-      setDist(d => 0.0034 + Math.sin(tt.current * 0.025) * 0.0009);
+      setVel(28.74  + Math.sin(tt.current * 0.04) * 1.1);
+      setDist(0.0034 + Math.sin(tt.current * 0.025) * 0.0009);
       setClock(new Date().toUTCString().slice(17, 25));
 
+      // Nouveau log toutes les 3s
       if (tt.current % 14 === 0) {
-        const idx = Math.floor(Math.random() * LOG_MESSAGES.length);
         const newLog: LogLine = {
-          id:   logId.current++,
-          text: LOG_MESSAGES[idx],
-          type: LOG_TYPES[idx],
+          id: logId.current++,
+          text: [
+            '▶ MISE À JOUR TRAJECTOIRE',
+            '✔ SIGNAL NOMINAL',
+            '  CALCUL ORBITAL EN COURS',
+            '⚠ ANOMALIE DÉTECTÉE',
+            '✔ CORRECTION APPLIQUÉE',
+          ][Math.floor(Math.random() * 5)],
+          type: ['hi','ok','normal','wa','ok'][Math.floor(Math.random() * 5)] as any,
         };
-        setLogs(prev => {
-          const next = [...prev.slice(-20), newLog];
-          // Scroll après setState, pas dans le ref callback
-          requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-          return next;
-        });
+        setLogs((prev) => [...prev.slice(-20), newLog]);
       }
-    }, 250);
-
+    }, 220);
     return () => clearInterval(id);
   }, []);
 
@@ -80,38 +67,40 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
     vel: '28.74', dist: '0.0034', diam: '~50m', mag: '24.5',
   };
 
+  // Ratio entre 0 et 1 — nombre pur, compatible New Architecture (Fabric)
   const velRatio = Math.min(Math.max(vel / 40, 0), 1);
 
   return (
     <View style={styles.container}>
 
-      {/* Titre */}
+      {/* ── Titre ── */}
       <View style={styles.sectionTitle}>
         <View style={styles.diamond} />
         <Text style={styles.sectionTitleText}>TÉLÉMÉTRIE NASA</Text>
       </View>
 
-      {/* Objet cible */}
+      {/* ── Objet cible ── */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>OBJET CIBLE</Text>
         <Text style={styles.cardValue} numberOfLines={1}>{target.name}</Text>
         <Text style={styles.cardSub}>{target.cls}</Text>
       </View>
 
-      {/* Vitesse orbitale */}
+      {/* ── Vitesse orbitale ── */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>VITESSE ORBITALE</Text>
         <View style={styles.row}>
           <Text style={styles.cardValue}>{vel.toFixed(2)}</Text>
           <Text style={styles.cardUnit}>km/s</Text>
         </View>
+        {/* ✅ FIX New Architecture : flex au lieu de width en % calculé dynamiquement */}
         <View style={styles.progressBg}>
           <View style={[styles.progressFill, { flex: velRatio }]} />
           <View style={{ flex: 1 - velRatio }} />
         </View>
       </View>
 
-      {/* Distance périgée */}
+      {/* ── Distance périgée ── */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>DISTANCE PÉRIGÉE</Text>
         <View style={styles.row}>
@@ -121,7 +110,7 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
         <Text style={styles.cardWarn}>⚠ APPROCHE CRITIQUE</Text>
       </View>
 
-      {/* Éléments orbitaux */}
+      {/* ── Éléments orbitaux ── */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>ÉLÉMENTS ORBITAUX</Text>
         <Text style={styles.orbLine}>e = <Text style={styles.orbVal}>0.2174</Text>  i = <Text style={styles.orbVal}>6.08°</Text></Text>
@@ -129,10 +118,12 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
         <Text style={styles.orbLine}>a = <Text style={styles.orbVal}>1.134</Text> UA  H = <Text style={styles.orbVal}>18.7</Text></Text>
       </View>
 
-      {/* Log système */}
+      {/* ── Log système ── */}
       <View style={styles.logBox}>
-        {/* ref stable — pas de callback inline qui recrée une fonction */}
-        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={(ref) => { if (ref) ref.scrollToEnd({ animated: true }); }}
+          showsVerticalScrollIndicator={false}
+        >
           {logs.map((l) => (
             <Text
               key={l.id}
@@ -145,7 +136,7 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
         </ScrollView>
       </View>
 
-      {/* Stats bas */}
+      {/* ── Stats bas ── */}
       <View style={styles.statsGrid}>
         <View style={styles.statCell}>
           <Text style={styles.statLabel}>OBJETS</Text>
@@ -170,29 +161,139 @@ export default function LeftPanel({ selectedAsteroid }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex:1, padding:8, gap:5 },
-  sectionTitle: { flexDirection:'row', alignItems:'center', gap:5, paddingBottom:5, borderBottomWidth:1, borderBottomColor:'rgba(0,229,255,0.06)' },
-  diamond: { width:4, height:4, backgroundColor:Colors.cyan, transform:[{rotate:'45deg'}] },
-  sectionTitleText: { fontFamily:'monospace', fontSize:7, letterSpacing:3, color:'rgba(0,229,255,0.3)' },
-  card: { backgroundColor:'rgba(0,229,255,0.03)', borderWidth:1, borderColor:'rgba(0,229,255,0.1)', borderRadius:5, padding:6 },
-  cardLabel: { fontFamily:'monospace', fontSize:7, letterSpacing:2, color:'rgba(0,229,255,0.3)', marginBottom:2 },
-  cardValue: { fontFamily:'monospace', fontSize:13, color:Colors.cyan },
-  cardUnit: { fontFamily:'monospace', fontSize:8, color:'rgba(0,229,255,0.4)', marginLeft:2, alignSelf:'flex-end' },
-  cardSub: { fontFamily:'monospace', fontSize:7, color:'rgba(255,80,80,0.65)', marginTop:2 },
-  cardWarn: { fontFamily:'monospace', fontSize:7, color:'rgba(255,80,80,0.65)', marginTop:2 },
-  row: { flexDirection:'row', alignItems:'baseline' },
-  progressBg: { height:2, backgroundColor:'rgba(0,229,255,0.07)', borderRadius:1, marginTop:3, overflow:'hidden', flexDirection:'row' },
-  progressFill: { backgroundColor:Colors.cyan },
-  orbLine: { fontFamily:'monospace', fontSize:7, color:'rgba(0,229,255,0.35)', lineHeight:13 },
-  orbVal: { color:'rgba(0,229,255,0.7)' },
-  logBox: { flex:1, backgroundColor:'rgba(0,0,0,0.35)', borderWidth:1, borderColor:'rgba(0,229,255,0.06)', borderRadius:4, padding:2, minHeight:0 },
-  logLine: { fontFamily:'monospace', fontSize:7, letterSpacing:0.5, paddingVertical:1, paddingHorizontal:5 },
-  log_normal: { color:'rgba(0,229,255,0.2)' },
-  log_hi:     { color:'rgba(0,229,255,0.6)' },
-  log_wa:     { color:'rgba(255,80,60,0.65)' },
-  log_ok:     { color:'rgba(0,255,136,0.55)' },
-  statsGrid: { flexDirection:'row', gap:3 },
-  statCell: { flex:1, backgroundColor:'rgba(0,0,0,0.4)', borderWidth:1, borderColor:'rgba(0,229,255,0.06)', borderRadius:4, padding:3, alignItems:'center' },
-  statLabel: { fontFamily:'monospace', fontSize:6, color:'rgba(0,229,255,0.25)', letterSpacing:1 },
-  statValue: { fontFamily:'monospace', fontSize:10, color:Colors.cyan },
+  container: {
+    flex: 1,
+    padding: 8,
+    gap: 5,
+  },
+
+  sectionTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,229,255,0.06)',
+  },
+  diamond: {
+    width: 4, height: 4,
+    backgroundColor: Colors.cyan,
+    transform: [{ rotate: '45deg' }],
+  },
+  sectionTitleText: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    letterSpacing: 3,
+    color: 'rgba(0,229,255,0.3)',
+  },
+
+  card: {
+    backgroundColor: 'rgba(0,229,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.1)',
+    borderRadius: 5,
+    padding: 6,
+  },
+  cardLabel: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    letterSpacing: 2,
+    color: 'rgba(0,229,255,0.3)',
+    marginBottom: 2,
+  },
+  cardValue: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    color: Colors.cyan,
+  },
+  cardUnit: {
+    fontFamily: 'monospace',
+    fontSize: 8,
+    color: 'rgba(0,229,255,0.4)',
+    marginLeft: 2,
+    alignSelf: 'flex-end',
+  },
+  cardSub: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    color: 'rgba(255,80,80,0.65)',
+    marginTop: 2,
+  },
+  cardWarn: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    color: 'rgba(255,80,80,0.65)',
+    marginTop: 2,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  progressBg: {
+    height: 2,
+    backgroundColor: 'rgba(0,229,255,0.07)',
+    borderRadius: 1,
+    marginTop: 3,
+    overflow: 'hidden',
+    flexDirection: 'row', // ✅ nécessaire pour que flex enfant fonctionne
+  },
+  progressFill: {
+    // flex est défini dynamiquement dans le JSX — pas de width ici
+    backgroundColor: Colors.cyan,
+  },
+  orbLine: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    color: 'rgba(0,229,255,0.35)',
+    lineHeight: 13,
+  },
+  orbVal: {
+    color: 'rgba(0,229,255,0.7)',
+  },
+
+  logBox: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.06)',
+    borderRadius: 4,
+    padding: 2,
+    minHeight: 0,
+  },
+  logLine: {
+    fontFamily: 'monospace',
+    fontSize: 7,
+    letterSpacing: 0.5,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+  },
+  log_normal: { color: 'rgba(0,229,255,0.2)' },
+  log_hi:     { color: 'rgba(0,229,255,0.6)' },
+  log_wa:     { color: 'rgba(255,80,60,0.65)' },
+  log_ok:     { color: 'rgba(0,255,136,0.55)' },
+
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  statCell: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.06)',
+    borderRadius: 4,
+    padding: 3,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontFamily: 'monospace',
+    fontSize: 6,
+    color: 'rgba(0,229,255,0.25)',
+    letterSpacing: 1,
+  },
+  statValue: {
+    fontFamily: 'monospace',
+    fontSize: 10,
+    color: Colors.cyan,
+  },
 });
