@@ -37,10 +37,10 @@ const { width: W, height: H } = Dimensions.get('window');
 // TOKENS
 // ─────────────────────────────────────────────
 const C = {
-  bg: '#07080a',
+  bg: '#000000',
   w: '#ddddd5',
-  wDim: 'rgba(221,221,213,0.45)',
-  wGhost: 'rgba(221,221,213,0.07)',
+  wDim: 'rgba(221,221,213,0.65)',
+  wGhost: 'rgba(221,221,213,0.12)',
   cyan: '#00c8d4',
   amber: '#e8a020',
   green: '#28c87a',
@@ -64,16 +64,16 @@ cv.width=window.innerWidth; cv.height=window.innerHeight;
 const W=cv.width,H=cv.height,CX=W*0.48,CY=H*0.52;
 const AST=[{a:W*0.21,b:H*0.14,spd:.38,t:.3,sz:6,lbl:'2025 BX12',ci:0},{a:W*0.28,b:H*0.19,spd:.24,t:2.4,sz:4.5,lbl:'2024 YR4',ci:1},{a:W*0.35,b:H*0.24,spd:.16,t:4.8,sz:4,lbl:'APOPHIS',ci:2},{a:W*0.40,b:H*0.28,spd:.1,t:1.5,sz:3,lbl:'1994 PC4',ci:3}];
 const COLS=['#e8a020','#c83228','#00c8d4','#8860d0'];
-const ORBC=['rgba(232,160,32,0.18)','rgba(200,50,40,0.12)','rgba(0,200,212,0.1)','rgba(136,96,208,0.1)'];
+const ORBC=['rgba(232,160,32,0.35)','rgba(200,50,40,0.25)','rgba(0,200,212,0.22)','rgba(136,96,208,0.22)'];
 let ot=0,er=0;
 function hex(h,a){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return'rgba('+r+','+g+','+b+','+a+')';}
 let stars=null;
 function draw(){
   oc.clearRect(0,0,W,H);
   const tilt=-0.18;
-  if(!stars){stars=[];for(let i=0;i<80;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.9+.2,a:Math.random()*.5+.1});}
+  if(!stars){stars=[];for(let i=0;i<80;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.9+.2,a:Math.random()*.7+.25});}
   stars.forEach(s=>{oc.beginPath();oc.arc(s.x,s.y,s.r,0,Math.PI*2);oc.fillStyle='rgba(221,221,213,'+s.a+')';oc.fill();});
-  AST.forEach((a,i)=>{oc.save();oc.translate(CX,CY);oc.rotate(tilt);oc.beginPath();oc.ellipse(0,0,a.a,a.b,0,0,Math.PI*2);oc.strokeStyle=ORBC[a.ci];oc.lineWidth=.7;oc.stroke();oc.restore();});
+  AST.forEach((a,i)=>{oc.save();oc.translate(CX,CY);oc.rotate(tilt);oc.beginPath();oc.ellipse(0,0,a.a,a.b,0,0,Math.PI*2);oc.strokeStyle=ORBC[a.ci];oc.lineWidth=1.2;oc.stroke();oc.restore();});
   const atm=oc.createRadialGradient(CX,CY,H*.09,CX,CY,H*.19);
   atm.addColorStop(0,'rgba(40,100,220,0.22)');atm.addColorStop(0.5,'rgba(20,60,180,0.08)');atm.addColorStop(1,'transparent');
   oc.beginPath();oc.arc(CX,CY,H*.19,0,Math.PI*2);oc.fillStyle=atm;oc.fill();
@@ -122,7 +122,7 @@ function normQ(q){const n=Math.hypot(...q);return q.map(v=>v/n);}
 let stars=null;
 function draw(){
   wc.clearRect(0,0,W,H);
-  if(!stars){stars=[];for(let i=0;i<60;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.7+.2,a:Math.random()*.35+.05});}
+  if(!stars){stars=[];for(let i=0;i<60;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.7+.2,a:Math.random()*.55+.15});}
   stars.forEach(s=>{wc.beginPath();wc.arc(s.x,s.y,s.r,0,Math.PI*2);wc.fillStyle='rgba(221,221,213,'+s.a+')';wc.fill();});
   qt+=.011;
   const ax=[0.5,.8,.3],an=Math.hypot(...ax),h=qt*.5;
@@ -134,8 +134,8 @@ function draw(){
     const d=(z+1.5)/3,col=FCOLS[i%FCOLS.length];
     wc.beginPath();wc.moveTo(proj[f[0]].x,proj[f[0]].y);
     for(let k=1;k<f.length;k++)wc.lineTo(proj[f[k]].x,proj[f[k]].y);
-    wc.closePath();wc.fillStyle=hex(col,d*.08);wc.fill();
-    wc.strokeStyle=hex(col,.12+d*.55);wc.lineWidth=.65;wc.stroke();
+    wc.closePath();wc.fillStyle=hex(col,d*.12);wc.fill();
+    wc.strokeStyle=hex(col,.25+d*.7);wc.lineWidth=.9;wc.stroke();
   });
   [[1,0,0,'#c83228'],[0,1,0,'#28c87a'],[0,0,1,'#3a7bd5']].forEach(([x,y,z,col])=>{
     const r=rotV([x*1.1,y*1.1,z*1.1],q);
@@ -167,24 +167,24 @@ function hex(h,a){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),
 let stars=null;
 function draw(){
   rc.clearRect(0,0,W,H);
-  if(!stars){stars=[];for(let i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.8+.2,a:Math.random()*.4+.08});}
+  if(!stars){stars=[];for(let i=0;i<70;i++)stars.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*.8+.2,a:Math.random()*.6+.15});}
   stars.forEach(s=>{rc.beginPath();rc.arc(s.x,s.y,s.r,0,Math.PI*2);rc.fillStyle='rgba(221,221,213,'+s.a+')';rc.fill();});
   [R,R*.72,R*.5,R*.3,R*.14].forEach((r,i)=>{
     rc.beginPath();rc.arc(CX,CY,r,0,Math.PI*2);
-    rc.strokeStyle='rgba(221,221,213,'+(0.03+i*.025)+')';rc.lineWidth=.5;
+    rc.strokeStyle='rgba(221,221,213,'+(0.07+i*.04)+')';rc.lineWidth=.6;
     if(i===2)rc.setLineDash([3,4]);else rc.setLineDash([]);
     rc.stroke();rc.setLineDash([]);
   });
   [0,Math.PI/4,Math.PI/2,Math.PI*3/4].forEach(a=>{
     rc.beginPath();rc.moveTo(CX+Math.cos(a)*R*.14,CY+Math.sin(a)*R*.14);
     rc.lineTo(CX+Math.cos(a)*R,CY+Math.sin(a)*R);
-    rc.strokeStyle='rgba(221,221,213,0.04)';rc.lineWidth=.5;rc.stroke();
+    rc.strokeStyle='rgba(221,221,213,0.08)';rc.lineWidth=.5;rc.stroke();
   });
   rc.save();rc.translate(CX,CY);rc.rotate(rt);
   rc.beginPath();rc.moveTo(0,0);rc.arc(0,0,R,-.18,.18);rc.closePath();
-  rc.fillStyle='rgba(0,200,212,0.055)';rc.fill();
+  rc.fillStyle='rgba(0,200,212,0.1)';rc.fill();
   rc.beginPath();rc.moveTo(0,0);rc.lineTo(R,0);
-  rc.strokeStyle='rgba(0,200,212,0.5)';rc.lineWidth=.8;rc.stroke();
+  rc.strokeStyle='rgba(0,200,212,0.75)';rc.lineWidth=1.2;rc.stroke();
   rc.restore();
   blips.forEach(b=>{
     const fade=Math.max(0,1-((rt-b.a+Math.PI*8)%(Math.PI*2))/(Math.PI*2));
@@ -299,8 +299,8 @@ const SlideItem = React.memo(({ item, isActive, onFinish }: { item: SlideData; i
         />
         {/* Vignette overlay */}
         <LinearGradient
-          colors={['transparent', 'rgba(7,8,10,0.5)', C.bg]}
-          locations={[0, 0.7, 1]}
+          colors={['transparent', 'rgba(7,8,10,0.25)', C.bg]}
+          locations={[0, 0.75, 1]}
           start={{ x: 1, y: 0 }}
           end={{ x: 0, y: 0 }}
           style={StyleSheet.absoluteFill}
@@ -418,8 +418,8 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
       <View style={s.scan} pointerEvents="none" />
       {/* Vignette */}
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.88)']}
-        start={{ x: 0.5, y: 0.3 }}
+        colors={['transparent', 'rgba(0,0,0,0.3)']}
+        start={{ x: 0.5, y: 0.5 }}
         end={{ x: 0.5, y: 1 }}
         style={[StyleSheet.absoluteFill, { zIndex: 1 }]}
         pointerEvents="none"
@@ -617,7 +617,7 @@ const s = StyleSheet.create({
   slideNum: {
     fontSize: 7,
     letterSpacing: 4,
-    color: 'rgba(221,221,213,0.25)',
+    color: 'rgba(221,221,213,0.45)',
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
     marginBottom: 10,
   },
@@ -632,7 +632,7 @@ const s = StyleSheet.create({
   titleDim: {
     fontSize: 32,
     fontWeight: '700',
-    color: 'rgba(221,221,213,0.28)',
+    color: 'rgba(221,221,213,0.45)',
     letterSpacing: 3,
     lineHeight: 34,
     marginBottom: 12,
@@ -671,7 +671,7 @@ const s = StyleSheet.create({
   qlabel: {
     fontSize: 6,
     letterSpacing: 2,
-    color: 'rgba(221,221,213,0.3)',
+    color: 'rgba(221,221,213,0.5)',
     marginBottom: 2,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
@@ -768,14 +768,14 @@ const s = StyleSheet.create({
   botText: {
     fontSize: 7,
     letterSpacing: 2,
-    color: 'rgba(221,221,213,0.2)',
+    color: 'rgba(221,221,213,0.38)',
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
   botRight: {
     marginLeft: 'auto',
     fontSize: 7,
     letterSpacing: 2,
-    color: 'rgba(221,221,213,0.2)',
+    color: 'rgba(221,221,213,0.38)',
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
 });
