@@ -8,7 +8,13 @@ const { NASA_API_KEY, NASA_BASE_URL } = require('../config');
  */
 const formatNeo = (neo) => {
   const diameter = neo.estimated_diameter?.kilometers;
-  const closeApproach = neo.close_approach_data?.[0];
+  const closeApproaches = neo.close_approach_data ?? [];
+  const closeApproach = closeApproaches[0]; // première approche pour les stats
+
+  // Tous les corps célestes uniques associés à cet astéroïde
+  const orbitingBodies = [
+    ...new Set(closeApproaches.map((ca) => ca.orbiting_body).filter(Boolean)),
+  ];
 
   return {
     id: neo.id,
@@ -32,6 +38,7 @@ const formatNeo = (neo) => {
       ),
     },
     closeApproachDate: closeApproach?.close_approach_date ?? null,
+    orbitingBodies,
     nasaUrl: neo.nasa_jpl_url,
   };
 };

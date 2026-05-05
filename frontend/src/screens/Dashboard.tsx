@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text, Animated, Easing, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, Animated, Easing, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import OrbitalRadar from '../components/OrbitalRadar/OrbitalRadar';
@@ -151,7 +151,14 @@ export default function Dashboard() {
           />
         </View>
 
-
+        {/* Bouton flottant — Catalogue NEO */}
+        <TouchableOpacity
+          style={styles.catalogueBtn}
+          onPress={() => router.push('/radar/list')}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.catalogueBtnText}>☰ CATALOGUE NEO</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Bottombar */}
@@ -290,4 +297,22 @@ const styles = StyleSheet.create({
   hcTR: { top: 5, right: 5, borderTopWidth: 1, borderRightWidth: 1 },
   hcBL: { bottom: 5, left: 5, borderBottomWidth: 1, borderLeftWidth: 1 },
   hcBR: { bottom: 5, right: 5, borderBottomWidth: 1, borderRightWidth: 1 },
+  catalogueBtn: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.cyan,
+    backgroundColor: 'rgba(0,229,255,0.12)',
+    zIndex: 20,
+  },
+  catalogueBtnText: {
+    fontFamily: 'monospace',
+    fontSize: 10,
+    letterSpacing: 2,
+    color: Colors.cyan,
+  },
 });
