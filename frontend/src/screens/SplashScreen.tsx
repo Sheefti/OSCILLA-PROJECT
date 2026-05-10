@@ -11,10 +11,9 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
-// Palette noir & blanc — cohérente avec la carte graphique de l'app
 const Colors = {
-  bg: '#000000',           // noir profond (même fond que l'app)
-  white: '#FFFFFF',        // blanc pur — éléments principaux
+  bg: '#000000',
+  white: '#FFFFFF',
   white60: 'rgba(255,255,255,0.6)',
   white30: 'rgba(255,255,255,0.3)',
   white10: 'rgba(255,255,255,0.10)',
@@ -27,7 +26,6 @@ interface Props {
 }
 
 export default function SplashScreen({ onFinish }: Props) {
-  // Animations
   const ringScale1   = useRef(new Animated.Value(0.3)).current;
   const ringScale2   = useRef(new Animated.Value(0.3)).current;
   const ringScale3   = useRef(new Animated.Value(0.3)).current;

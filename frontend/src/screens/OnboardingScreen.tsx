@@ -1,11 +1,3 @@
-/**
- * OSCILLA — OnboardingScreen.tsx
- * 3 slides avec FlatList horizontal + animations Canvas (WebView) + staggered text
- *
- * Dépendances : expo-linear-gradient, react-native-reanimated, react-native-webview
- * npm install expo-linear-gradient react-native-reanimated react-native-webview
- */
-
 import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
