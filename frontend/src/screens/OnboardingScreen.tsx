@@ -10,6 +10,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -401,7 +402,7 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
   const keyExtractor = (item: SlideData) => item.id;
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       {/* Background grid */}
@@ -483,7 +484,7 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
         <Text style={s.botText}>OSCILLA v1.0.0 · CINÉMATIQUE ORBITALE</Text>
         <Text style={s.botRight}>JPL · CNEOS · ESA · TEMPS RÉEL</Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

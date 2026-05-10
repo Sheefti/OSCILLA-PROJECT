@@ -8,6 +8,7 @@ import {
   Easing,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
@@ -162,7 +163,7 @@ export default function SplashScreen({ onFinish }: Props) {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
 
       {/* Grille de fond */}
       <Animated.View style={[styles.grid, { opacity: gridOpacity }]}>
@@ -227,7 +228,7 @@ export default function SplashScreen({ onFinish }: Props) {
         </View>
       </Animated.View>
 
-    </View>
+    </SafeAreaView>
   );
 }
 

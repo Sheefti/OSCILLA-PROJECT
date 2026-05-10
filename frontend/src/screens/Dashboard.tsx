@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet, View, Text, Animated, Easing,
-  useWindowDimensions, TouchableOpacity, ActivityIndicator,
+  useWindowDimensions, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,93 +19,12 @@ import { PLANETS, PlanetAsteroidData } from '../theme/planets';
 import { Colors }   from '../theme/colors';
 import api          from '../services/api';
 
-// ─── Horloge UTC ─────────────────────────────────────────────────────────────
-
-function useUTCClock() {
-  const [clock, setClock] = useState('--:--:--');
-  useEffect(() => {
-    const tick = () => {
-      const n = new Date();
-      setClock(
-        [n.getUTCHours(), n.getUTCMinutes(), n.getUTCSeconds()]
-          .map((v) => String(v).padStart(2, '0')).join(':')
-      );
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return clock;
-}
-
-// ─── Topbar ──────────────────────────────────────────────────────────────────
-
-function Topbar({ systemLabel }: { systemLabel: string }) {
-  const clock = useUTCClock();
-  const blink = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(blink, { toValue: 0, duration: 600, useNativeDriver: true }),
-        Animated.timing(blink, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
-  return (
-    <View style={tb.bar}>
-      <Text style={tb.logo}>OSCILLA</Text>
-      <View style={tb.mid}>
-        <View style={tb.dotLive} />
-        <Text style={tb.midText}>{systemLabel}</Text>
-      </View>
-      <View style={tb.right}>
-        <Text style={tb.metaText}>UTC <Text style={tb.metaVal}>{clock}</Text></Text>
-        <Text style={tb.metaText}>SESSION <Text style={tb.metaVal}>ΔT-2847</Text></Text>
-        <Text style={tb.metaText}>INTÉGRITÉ <Text style={tb.metaVal}>99.7%</Text></Text>
-        <Text style={tb.metaText}>MODE{' '}
-          <Animated.Text style={[tb.metaVal, { opacity: blink }]}>ACTIF</Animated.Text>
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-// ─── Bottombar ───────────────────────────────────────────────────────────────
-
-function Bottombar() {
-  const prog = useRef(new Animated.Value(0.12)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(prog, { toValue: 0.93, duration: 9000, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-        Animated.timing(prog, { toValue: 0.12, duration: 9000, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-      ])
-    ).start();
-  }, []);
-
-  const barWidth = prog.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
-
-  return (
-    <View style={bb.bar}>
-      <Text style={bb.text}>OSCILLA <Text style={bb.em}>v4.0</Text> · CINÉMATIQUE ORBITALE</Text>
-      <View style={bb.track}>
-        <Animated.View style={[bb.fill, { width: barWidth }]} />
-      </View>
-      <Text style={bb.text}><Text style={bb.em}>JPL · CNEOS · ESA</Text> · TEMPS RÉEL</Text>
-    </View>
-  );
-}
-
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
 
   const LEFT_WIDTH = 200;
-  const NAV_WIDTH  = 58;
 
   const [radarSize, setRadarSize] = useState({ w: 0, h: 0 });
 
@@ -307,59 +226,6 @@ export default function Dashboard() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const tb = StyleSheet.create({
-  bar: {
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.008)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-  },
-  logo: {
-    fontFamily: 'Orbitron_900Black',
-    fontSize: 13, fontWeight: '900', letterSpacing: 10,
-    color: '#ffffff',
-  },
-  mid: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  dotLive: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: Colors.green,
-    shadowColor: Colors.green,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 6,
-  },
-  midText: {
-    fontFamily: 'ShareTechMono_400Regular', fontSize: 8, letterSpacing: 2,
-    color: 'rgba(255,255,255,0.25)',
-  },
-  right: { flexDirection: 'row', gap: 16 },
-  metaText: {
-    fontFamily: 'ShareTechMono_400Regular', fontSize: 8, letterSpacing: 1,
-    color: 'rgba(255,255,255,0.25)',
-  },
-  metaVal: { color: '#c8a84b' },
-});
-
-const bb = StyleSheet.create({
-  bar: {
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.006)',
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingHorizontal: 14,
-  },
-  text: { fontFamily: 'ShareTechMono_400Regular', fontSize: 7, color: 'rgba(255,255,255,0.18)', letterSpacing: 1 },
-  em:   { color: 'rgba(255,255,255,0.40)' },
-  track: {
-    width: 90, height: 2,
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 1, overflow: 'hidden',
-  },
-  fill: { flex: 1, backgroundColor: '#ffffff' },
-});
-
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.bg,
@@ -385,12 +251,4 @@ const styles = StyleSheet.create({
   loadingText: {
     fontFamily: 'ShareTechMono_400Regular', fontSize: 7, letterSpacing: 2,
   },
-  hc: {
-    position: 'absolute', width: 16, height: 16,
-    borderColor: 'rgba(255,255,255,0.22)',
-  },
-  hcTL: { top: 5, left: 5, borderTopWidth: 1, borderLeftWidth: 1 },
-  hcTR: { top: 5, right: 5, borderTopWidth: 1, borderRightWidth: 1 },
-  hcBL: { bottom: 5, left: 5, borderBottomWidth: 1, borderLeftWidth: 1 },
-  hcBR: { bottom: 5, right: 5, borderBottomWidth: 1, borderRightWidth: 1 },
 });
