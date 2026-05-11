@@ -1,353 +1,320 @@
 /**
- * WireframeModel
+ * WireframeModel.tsx
  *
- * Icosphère procédurale déformée rendue en SVG via react-native-svg.
- * Rotation temps réel sans Gimbal Lock grâce aux quaternions purs.
+ * Rendu 3D haute performance de l'astéroïde via @react-three/fiber/native.
  *
- * Algorithme :
- *  1. Génération d'une icosphère de subdivision niveau 2
- *  2. Déformation radiale aléatoire (seed basé sur l'ID) → aspect rocheux
- *  3. Projection perspective simple (focal distance)
- *  4. Tri des faces par profondeur (painter's algorithm)
- *  5. Rendu SVG : faces + arêtes + glow occulté par la profondeur
+ * Corrections v2 :
+ *  - Imports nommés Three.js  → corrige ts(7016) "implicitly has any type"
+ *    (plus besoin de `import * as THREE from 'three'`)
+ *  - `rotation` retiré des props internes de AsteroidMesh — la boucle R3F
+ *    (useFrame) est indépendante du hook useQuaternion React Native.
+ *    Le prop `rotation: QuaternionState` est conservé sur WireframeModelProps
+ *    pour compatibilité de signature avec AsteroidInspector, mais n'est pas
+ *    transmis au Canvas (les angles Euler sont affichés dans le HUD natif).
+ *
+ * Install :
+ *   npx expo install three @react-three/fiber
+ *   npm i --save-dev @types/three          ← résout définitivement ts(7016)
  */
 
-import React, { useMemo } from 'react';
-import Svg, { Line, Polygon, Circle, Text as SvgText } from 'react-native-svg';
-
-import { rotateVec3, Vec3 } from '../../math/quaternion';
-import type { QuaternionState } from '../../hooks/useQuaternion';
-import { Colors } from '../../theme/colors';
+import React, { useRef, useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
+import {
+  IcosahedronGeometry,
+  SphereGeometry,
+  BufferGeometry,
+  BufferAttribute,
+  Float32BufferAttribute,
+  MeshBasicMaterial,
+  LineBasicMaterial,
+  Color,
+  Quaternion as ThreeQuaternion,
+  Vector3,
+  FrontSide,
+  BackSide,
+  PerspectiveCamera,
+  Mesh,
+  PointsMaterial,
+  Points,
+  MeshLambertMaterial,
+} from 'three';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Types internes
+// Props
 // ─────────────────────────────────────────────────────────────────────────────
 
-type TriFace = [number, number, number]; // indices dans le tableau de sommets
-
-interface ProjectedVertex {
-  sx: number; // screen x
-  sy: number; // screen y
-  depth: number;
+export interface WireframeModelProps {
+  /** Seed de déformation → forme unique et déterministe par astéroïde */
+  asteroidId: number;
+  /** Couleur hex : '#c8a84b' (amber) | '#cc3333' (red) | '#ffffff' */
+  color:      string;
+  width:      number;
+  height:     number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Génération de l'icosphère (procédural, ∅ dépendance externe)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const PHI = (1 + Math.sqrt(5)) / 2;
-
-/** 12 sommets du dodécaèdre régulier normalisés → base icosphère niveau 1 */
-function baseIcosahedronVertices(): Vec3[] {
-  const vs: Vec3[] = [
-    [-1,  PHI, 0], [ 1,  PHI, 0], [-1, -PHI, 0], [ 1, -PHI, 0],
-    [ 0, -1,  PHI], [ 0,  1,  PHI], [ 0, -1, -PHI], [ 0,  1, -PHI],
-    [ PHI, 0, -1], [ PHI, 0,  1], [-PHI, 0, -1], [-PHI, 0,  1],
-  ];
-  return vs.map(normalize3);
-}
-
-function normalize3(v: Vec3): Vec3 {
-  const len = Math.sqrt(v[0]**2 + v[1]**2 + v[2]**2);
-  return [v[0]/len, v[1]/len, v[2]/len];
-}
-
-/** 20 faces de l'icosaèdre de base (indices dans le tableau de sommets) */
-const BASE_FACES: TriFace[] = [
-  [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
-  [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
-  [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
-  [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1],
-];
-
-/** Subdivise une fois : chaque triangle → 4 triangles */
-function subdivide(verts: Vec3[], faces: TriFace[]): { verts: Vec3[]; faces: TriFace[] } {
-  const midCache = new Map<string, number>();
-  const newVerts = [...verts];
-
-  function midpoint(a: number, b: number): number {
-    const key = a < b ? `${a}_${b}` : `${b}_${a}`;
-    if (midCache.has(key)) return midCache.get(key)!;
-    const va = newVerts[a], vb = newVerts[b];
-    const mid = normalize3([(va[0]+vb[0])/2, (va[1]+vb[1])/2, (va[2]+vb[2])/2]);
-    const idx = newVerts.length;
-    newVerts.push(mid);
-    midCache.set(key, idx);
-    return idx;
-  }
-
-  const newFaces: TriFace[] = [];
-  for (const [a, b, c] of faces) {
-    const ab = midpoint(a, b);
-    const bc = midpoint(b, c);
-    const ca = midpoint(c, a);
-    newFaces.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]);
-  }
-  return { verts: newVerts, faces: newFaces };
-}
-
-/** LCG pseudo-aléatoire déterministe (seed entier) → float [0,1] */
-function lcg(seed: number): () => number {
-  let s = seed | 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
+function buildDeformedGeometry(seed: number): BufferGeometry {
+  // LCG (Random Number Generator)
+  const rng = (s: number) => {
+    s = (s ^ (s << 13)) >>> 0;
+    s = (s ^ (s >> 17)) >>> 0;
+    s = (s ^ (s << 5)) >>> 0;
+    return s;
   };
-}
 
-/**
- * Construit l'icosphère finale avec déformation radiale.
- * `subdivLevel` : 0 = ico 20 faces · 1 = 80 faces · 2 = 320 faces
- */
-function buildAsteroid(
-  seed: number,
-  subdivLevel = 2,
-  deformAmp = 0.22,
-): { verts: Vec3[]; faces: TriFace[] } {
-  let verts = baseIcosahedronVertices();
-  let faces = BASE_FACES;
-  for (let i = 0; i < subdivLevel; i++) {
-    ({ verts, faces } = subdivide(verts, faces));
+  let s = seed | 0;
+  const numVerts = 52;
+  const verts: number[][] = [];
+
+  for (let i = 0; i < numVerts; i++) {
+    s = rng(s + i * 1337);
+    const theta = ((s % 1000) / 1000) * Math.PI * 2;
+    s = rng(s);
+    const phi = Math.acos(2 * ((s % 1000) / 1000) - 1);
+    s = rng(s);
+    const r = 0.7 + ((s % 1000) / 1000) * 0.65;
+    // Low-frequency deformation for cratered look
+    const lf = 1.0 + 0.35 * Math.sin(theta * 2.1 + phi * 1.7) + 0.18 * Math.sin(theta * 4.3 - phi * 3.1);
+    
+    verts.push([
+      Math.sin(phi) * Math.cos(theta) * r * lf,
+      Math.sin(phi) * Math.sin(theta) * r * lf,
+      Math.cos(phi) * r * lf,
+    ]);
   }
 
-  const rand = lcg(seed);
-  // Déformation radiale unique par sommet — même seed → même forme
-  const deformed: Vec3[] = verts.map((v) => {
-    const noise = 1 + (rand() - 0.5) * 2 * deformAmp;
-    return [v[0] * noise, v[1] * noise, v[2] * noise];
+  // Build edges
+  const edges = new Set<string>();
+  for (let i = 0; i < verts.length; i++) {
+    const dists = verts.map((v, j) => ({
+      j,
+      d: Math.hypot(verts[i][0] - v[0], verts[i][1] - v[1], verts[i][2] - v[2])
+    })).filter(x => x.j !== i).sort((a, b) => a.d - b.d);
+    
+    for (let k = 0; k < Math.min(5, dists.length); k++) {
+      const key = [i, dists[k].j].sort((a, b) => a - b).join('-');
+      edges.add(key);
+    }
+  }
+  const edgeList = Array.from(edges).map(e => e.split('-').map(Number));
+
+  // Build faces
+  const adj: Record<number, Set<number>> = {};
+  for (const [a, b] of edgeList) {
+    if (!adj[a]) adj[a] = new Set();
+    if (!adj[b]) adj[b] = new Set();
+    adj[a].add(b);
+    adj[b].add(a);
+  }
+
+  const faces: number[][] = [];
+  for (const [a, b] of edgeList) {
+    for (const c of adj[a]) {
+      if (c !== b && adj[b].has(c)) {
+        faces.push([a, b, c]);
+      }
+    }
+  }
+
+  // Dedupe faces
+  const seen = new Set<string>();
+  const finalFaces = faces.filter(f => {
+    const k = f.slice().sort((a, b) => a - b).join('-');
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
   });
 
-  return { verts: deformed, faces };
+  // Construct BufferGeometry
+  const geom = new BufferGeometry();
+  
+  const positions = new Float32Array(verts.length * 3);
+  for (let i = 0; i < verts.length; i++) {
+    positions[i * 3]     = verts[i][0];
+    positions[i * 3 + 1] = verts[i][1];
+    positions[i * 3 + 2] = verts[i][2];
+  }
+  geom.setAttribute('position', new BufferAttribute(positions, 3));
+
+  const indices = [];
+  for (const f of finalFaces) {
+    indices.push(f[0], f[1], f[2]);
+  }
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+
+  return geom;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projection perspective
+// parseColor — hex → Three.Color avec fallback amber
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FOCAL = 3.2; // distance focale (unités de l'objet)
-
-function project(v: Vec3, cx: number, cy: number, scale: number): ProjectedVertex {
-  const z = v[2] + FOCAL;
-  const f = (z > 0.01 ? FOCAL / z : 1) * scale;
-  return {
-    sx:    cx + v[0] * f,
-    sy:    cy - v[1] * f, // y inversé (SVG haut = 0)
-    depth: v[2],
-  };
+function parseColor(hex: string): Color {
+  try {
+    // Si la couleur est au format rgba(r,g,b,a), on la convertit en rgb(r,g,b)
+    // car THREE.Color ne supporte pas le canal alpha (cela génère un warning).
+    if (hex.startsWith('rgba')) {
+      const rgb = hex.replace(/rgba?(\([^,]+,[^,]+,[^,]+),[^)]+\)/, 'rgb$1)');
+      return new Color(rgb);
+    }
+    return new Color(hex);
+  } catch {
+    return new Color('#c8a84b');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Props & Composant
+// AsteroidMesh
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface WireframeModelProps {
-  /** ID de l'astéroïde — seed de la déformation */
+interface AsteroidMeshProps {
   asteroidId: number;
-  /** Quaternion courant issu du hook useQuaternion */
-  rotation: QuaternionState;
-  /** Couleur principale (amber, red ou cyan selon alerte) */
-  color: string;
-  /** Dimensions du canvas SVG */
-  width: number;
-  height: number;
-  /** Rayon de l'objet en pixels (avant projection) */
-  radius?: number;
+  color:      string;
 }
 
-const WireframeModel: React.FC<WireframeModelProps> = ({
+function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElement {
+  const wireRef   = useRef<Mesh>(null);
+  const faceRef   = useRef<Mesh>(null);
+  const pointsRef = useRef<Points>(null);
+
+  const geometry   = useMemo(() => buildDeformedGeometry(asteroidId), [asteroidId]);
+  const threeColor = useMemo(() => parseColor(color), [color]);
+
+  const wireMat = useMemo(
+    () => new MeshBasicMaterial({
+      color: threeColor, wireframe: true, transparent: true, opacity: 0.6, depthWrite: false,
+    }),
+    [threeColor],
+  );
+
+  const faceMat = useMemo(
+    () => new MeshLambertMaterial({
+      color: threeColor, transparent: true, opacity: 0.12, side: FrontSide, depthWrite: false,
+    }),
+    [threeColor],
+  );
+
+  const pointsMat = useMemo(
+    () => new PointsMaterial({
+      color: threeColor, size: 2.5, transparent: true, opacity: 0.9, sizeAttenuation: false, depthWrite: false,
+    }),
+    [threeColor],
+  );
+
+  const tq = useRef(new ThreeQuaternion());
+  const dqY = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(0, 1, 0), 0.005),  []);
+  const dqX = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.0018), []);
+  const dqZ = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(0, 0, 1), 0.0009), []);
+
+  useFrame(() => {
+    tq.current.multiply(dqY).multiply(dqX).multiply(dqZ).normalize();
+    if (wireRef.current)   wireRef.current.quaternion.copy(tq.current);
+    if (faceRef.current)   faceRef.current.quaternion.copy(tq.current);
+    if (pointsRef.current) pointsRef.current.quaternion.copy(tq.current);
+  });
+
+  return (
+    <group scale={[0.6, 0.6, 0.6]}>
+      <mesh ref={faceRef} geometry={geometry} material={faceMat} renderOrder={0} />
+      <mesh ref={wireRef} geometry={geometry} material={wireMat} renderOrder={1} />
+      <points ref={pointsRef} geometry={geometry} material={pointsMat} renderOrder={2} />
+    </group>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SceneLights
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SceneLights({ color }: { color: string }): React.ReactElement {
+  const c = useMemo(() => parseColor(color), [color]);
+  return (
+    <>
+      <ambientLight     color={c} intensity={0.15} />
+      <directionalLight color={c} intensity={1.2} position={[-2,  2.5,  3]} />
+      <directionalLight color={c} intensity={0.3} position={[ 2, -1.5, -2]} />
+      <pointLight       color={c} intensity={0.6} distance={3} decay={2} position={[0, 0, 0]} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CameraSetup
+// ─────────────────────────────────────────────────────────────────────────────
+
+function HoloGrid({ color }: { color: string }): React.ReactElement {
+  const c = useMemo(() => parseColor(color), [color]);
+
+  const mat = useMemo(
+    () => new LineBasicMaterial({ color: c, transparent: true, opacity: 0.04, depthWrite: false }),
+    [c],
+  );
+
+  const geo = useMemo(() => {
+    const pts: number[] = [];
+    const R = 2.5, S = 0.35, Z = -1.5;
+    for (let v = -R; v <= R + 0.001; v += S) { pts.push(-R, v, Z, R, v, Z); }
+    for (let u = -R; u <= R + 0.001; u += S) { pts.push(u, -R, Z, u, R, Z); }
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pts, 3));
+    return g;
+  }, []);
+
+  return <lineSegments geometry={geo} material={mat} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CameraSetup — aspect ratio + position
+// ─────────────────────────────────────────────────────────────────────────────
+
+function CameraSetup({ width, height }: { width: number; height: number }): null {
+  const { camera } = useThree();
+  useMemo(() => {
+    const cam = camera as PerspectiveCamera;
+    cam.aspect = width / (height || 1);
+    cam.fov    = 42;
+    cam.near   = 0.1;
+    cam.far    = 50;
+    cam.position.set(0, 0, 3.2);
+    cam.updateProjectionMatrix();
+  }, [camera, width, height]);
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WireframeModel — export principal
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function WireframeModel({
   asteroidId,
-  rotation,
   color,
   width,
   height,
-  radius = Math.min(width, height) * 0.36,
-}) => {
-  const cx = width  / 2;
-  const cy = height / 2;
-
-  // Géométrie (re-générée uniquement si l'ID change)
-  const { verts: baseVerts, faces } = useMemo(
-    () => buildAsteroid(asteroidId, 2, 0.22),
-    [asteroidId],
-  );
-
-  // ── Rotation + projection ─────────────────────────────────────────────────
-  const rotated: Vec3[]           = baseVerts.map((v) => rotateVec3(v, rotation.q));
-  const projected: ProjectedVertex[] = rotated.map((v) => project(v, cx, cy, radius));
-
-  // ── Calcul de la normale de chaque face (éclairage + painter's algo) ──────
-  interface FaceInfo {
-    face: TriFace;
-    depth: number;         // profondeur moyenne
-    dotLight: number;      // produit scalaire avec source lumineuse
-  }
-
-  const LIGHT: Vec3 = normalize3([-0.6, 0.8, 0.5]); // direction lumineuse
-
-  const faceInfos: FaceInfo[] = faces.map((face) => {
-    const [ia, ib, ic] = face;
-    const ra = rotated[ia], rb = rotated[ib], rc = rotated[ic];
-
-    // Vecteurs des arêtes
-    const ab: Vec3 = [rb[0]-ra[0], rb[1]-ra[1], rb[2]-ra[2]];
-    const ac: Vec3 = [rc[0]-ra[0], rc[1]-ra[1], rc[2]-ra[2]];
-
-    // Normale (produit vectoriel)
-    const nx = ab[1]*ac[2] - ab[2]*ac[1];
-    const ny = ab[2]*ac[0] - ab[0]*ac[2];
-    const nz = ab[0]*ac[1] - ab[1]*ac[0];
-    const nl = Math.sqrt(nx**2 + ny**2 + nz**2) || 1;
-    const n: Vec3 = [nx/nl, ny/nl, nz/nl];
-
-    const dotLight = Math.max(0, n[0]*LIGHT[0] + n[1]*LIGHT[1] + n[2]*LIGHT[2]);
-    const depth    = (ra[2] + rb[2] + rc[2]) / 3;
-
-    return { face, depth, dotLight };
-  });
-
-  // Tri back-to-front (painter's algorithm)
-  faceInfos.sort((a, b) => a.depth - b.depth);
-
-  // ── Parse couleur principale → rgb ───────────────────────────────────────
-  // Valeurs de fallback par couleur connue
-  const colorRgb =
-    color === Colors.red   ? '255,61,61'   :
-    color === Colors.amber ? '255,171,0'   :
-                             '0,229,255';
-
-  // ── Euler pour l'overlay HUD ─────────────────────────────────────────────
-  const { roll, pitch, yaw } = rotation.euler;
-
-  // ── Rendu ────────────────────────────────────────────────────────────────
+}: WireframeModelProps): React.ReactElement {
   return (
-    <Svg width={width} height={height}>
-
-      {/* Grille de fond — effet holographique */}
-      {Array.from({ length: 9 }, (_, i) => (
-        <Line
-          key={`hg-${i}`}
-          x1={cx - radius * 1.5 + i * (radius * 3 / 8)}
-          y1={cy - radius * 1.5}
-          x2={cx - radius * 1.5 + i * (radius * 3 / 8)}
-          y2={cy + radius * 1.5}
-          stroke={`rgba(${colorRgb},0.04)`}
-          strokeWidth={0.5}
-        />
-      ))}
-      {Array.from({ length: 9 }, (_, i) => (
-        <Line
-          key={`hv-${i}`}
-          x1={cx - radius * 1.5}
-          y1={cy - radius * 1.5 + i * (radius * 3 / 8)}
-          x2={cx + radius * 1.5}
-          y2={cy - radius * 1.5 + i * (radius * 3 / 8)}
-          stroke={`rgba(${colorRgb},0.04)`}
-          strokeWidth={0.5}
-        />
-      ))}
-
-      {/* Cercle équatorial de référence */}
-      <Circle
-        cx={cx} cy={cy}
-        r={radius * 1.05}
-        fill="none"
-        stroke={`rgba(${colorRgb},0.07)`}
-        strokeWidth={0.8}
-        strokeDasharray="4 6"
-      />
-
-      {/* ── Faces (painter's algo, arrière → avant) ── */}
-      {faceInfos.map(({ face, depth, dotLight }, i) => {
-        const [ia, ib, ic] = face;
-        const pa = projected[ia], pb = projected[ib], pc = projected[ic];
-
-        // Face visible uniquement si elle fait face à la caméra (z culling léger)
-        const isBack = depth < -0.85;
-
-        // Opacité face : ambiant + diffus directionnel
-        const ambient = 0.04;
-        const faceOpacity = isBack ? 0 : Math.min(ambient + dotLight * 0.13, 0.18);
-
-        // Opacité arête : moins visible à l'arrière
-        const edgeOpacity = isBack ? 0.04 : 0.12 + dotLight * 0.22;
-
-        const points = `${pa.sx},${pa.sy} ${pb.sx},${pb.sy} ${pc.sx},${pc.sy}`;
-
-        return (
-          <React.Fragment key={i}>
-            {/* Remplissage face */}
-            <Polygon
-              points={points}
-              fill={`rgba(${colorRgb},${faceOpacity.toFixed(3)})`}
-              stroke="none"
-            />
-            {/* Arête (wireframe) */}
-            <Polygon
-              points={points}
-              fill="none"
-              stroke={`rgba(${colorRgb},${edgeOpacity.toFixed(3)})`}
-              strokeWidth={0.6}
-              strokeLinejoin="round"
-            />
-          </React.Fragment>
-        );
-      })}
-
-      {/* ── Glow central (halo holographique) ── */}
-      <Circle
-        cx={cx} cy={cy}
-        r={radius * 0.18}
-        fill={`rgba(${colorRgb},0.12)`}
-      />
-      <Circle
-        cx={cx} cy={cy}
-        r={radius * 0.08}
-        fill={`rgba(${colorRgb},0.3)`}
-      />
-
-      {/* ── Réticule de ciblage ── */}
-      {/* Horizontal */}
-      <Line
-        x1={cx - radius * 0.22} y1={cy}
-        x2={cx - radius * 0.08} y2={cy}
-        stroke={`rgba(${colorRgb},0.5)`} strokeWidth={0.8}
-      />
-      <Line
-        x1={cx + radius * 0.08} y1={cy}
-        x2={cx + radius * 0.22} y2={cy}
-        stroke={`rgba(${colorRgb},0.5)`} strokeWidth={0.8}
-      />
-      {/* Vertical */}
-      <Line
-        x1={cx} y1={cy - radius * 0.22}
-        x2={cx} y2={cy - radius * 0.08}
-        stroke={`rgba(${colorRgb},0.5)`} strokeWidth={0.8}
-      />
-      <Line
-        x1={cx} y1={cy + radius * 0.08}
-        x2={cx} y2={cy + radius * 0.22}
-        stroke={`rgba(${colorRgb},0.5)`} strokeWidth={0.8}
-      />
-
-      {/* ── Overlay HUD — angles quaternion (affichage uniquement) ── */}
-      <SvgText
-        x={cx - radius * 1.4} y={cy + radius * 1.38}
-        fontSize={8} fontFamily="monospace" letterSpacing={1.5}
-        fill={`rgba(${colorRgb},0.35)`}
+    <View style={[StyleSheet.absoluteFill, styles.container]}>
+      <Canvas
+        style={{ width, height }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.setClearColor(0x000000, 0); // fond transparent → noir du View parent
+        }}
       >
-        {`ROLL ${roll.toFixed(1)}°  PITCH ${pitch.toFixed(1)}°  YAW ${yaw.toFixed(1)}°`}
-      </SvgText>
-
-      {/* Label résolution */}
-      <SvgText
-        x={cx + radius * 0.6} y={cy - radius * 1.38}
-        fontSize={7} fontFamily="monospace" letterSpacing={1}
-        fill={`rgba(${colorRgb},0.25)`}
-      >
-        {`Q-VEC · ${baseVerts.length}V · ${faces.length}F`}
-      </SvgText>
-    </Svg>
+        <CameraSetup width={width} height={height} />
+        <SceneLights color={color} />
+        <AsteroidMesh asteroidId={asteroidId} color={color} />
+      </Canvas>
+    </View>
   );
-};
+}
 
-export default WireframeModel;
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    zIndex: 0, // les overlays HUD natifs (coins, textes) ont zIndex > 0
+  },
+});

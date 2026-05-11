@@ -1,35 +1,29 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, TouchableWithoutFeedback } from 'react-native';
 import Svg, {
-  Circle,
-  Ellipse,
-  Line,
-  Path,
-  G,
-  Text as SvgText,
-  Defs,
-  RadialGradient,
-  Stop,
-  ClipPath,
-  Polygon,
+  Circle, Ellipse, Line, Path, G,
+  Text as SvgText, Defs, RadialGradient, Stop, ClipPath, Polygon,
 } from 'react-native-svg';
-import { ASTEROIDS, AsteroidData } from '../../theme/asteroids';
+import { PlanetAsteroidData } from '../../theme/planets';
 import { computeOrbitalPosition } from '../../math/orbital';
 
 interface Props {
   width:           number;
   height:          number;
-  onAsteroidPress: (asteroid: AsteroidData) => void;
+  onAsteroidPress: (asteroid: PlanetAsteroidData) => void;
   selectedId:      number;
+  // Données dynamiques injectées par le Dashboard
+  asteroids:       PlanetAsteroidData[];
+  planetColors:    [string, string, string]; // [col1, col2, col3] gradient planète
+  accentRgb:       string;                  // ex: "0,229,255"
+  planetKey?:      string;                  // ex: "terre", "mars"
 }
 
-// ─────────────────────────────────────────────────────────────
-// MESH 3D — icosphère déformée (identique maquette HTML)
-// ─────────────────────────────────────────────────────────────
+// ─── MESH 3D — icosphère déformée ────────────────────────────────────────────
 interface Mesh { verts: number[][]; faces: number[][]; }
 
 function genAsteroidMesh(id: number): Mesh {
-  const seed   = id * 1.37 + 0.5;
+  const seed = id * 1.37 + 0.5;
   const stacks = 7, slices = 9;
   const verts: number[][] = [];
   const faces: number[][] = [];
@@ -57,40 +51,33 @@ function genAsteroidMesh(id: number): Mesh {
   return { verts, faces };
 }
 
-// Projection perspective (identique maquette, fov=3.5)
 function project3D(v: number[], ax: number, ay: number, cx: number, cy: number, scale: number) {
   let x = v[0]*Math.cos(ay) - v[2]*Math.sin(ay);
   let z = v[0]*Math.sin(ay) + v[2]*Math.cos(ay);
-  let y = v[1];
+  const y = v[1];
   const y2 = y*Math.cos(ax) - z*Math.sin(ax);
   const z2 = y*Math.sin(ax) + z*Math.cos(ax);
-  const pz  = z2 + 3.5;
+  const pz = z2 + 3.5;
   return { sx: cx + (x/pz)*scale, sy: cy + (y2/pz)*scale, z2 };
 }
 
-// Rendu mesh → éléments SVG
 function renderMesh(
   mesh: Mesh, ax: number, ay: number,
   cx: number, cy: number, scale: number, rgb: string,
 ): React.ReactNode[] {
   const proj = mesh.verts.map(v => project3D(v, ax, ay, cx, cy, scale));
-
   const sorted = mesh.faces
     .map(f => ({ f, avgZ: f.reduce((s, vi) => s + proj[vi].z2, 0) / f.length }))
     .sort((a, b) => a.avgZ - b.avgZ);
 
   const els: React.ReactNode[] = [];
-
   sorted.forEach(({ f, avgZ }, idx) => {
     const pts = f.map(vi => proj[vi]);
-    // Back-face culling
     const ax2 = pts[1].sx - pts[0].sx, ay2 = pts[1].sy - pts[0].sy;
     const bx2 = pts[2].sx - pts[0].sx, by2 = pts[2].sy - pts[0].sy;
     if (ax2*by2 - ay2*bx2 > 0) return;
-
     const light = Math.max(0, Math.min(1, (avgZ + 2.5) / 3.5));
     const points = pts.map(p => `${p.sx.toFixed(1)},${p.sy.toFixed(1)}`).join(' ');
-
     els.push(
       <Polygon key={`f${idx}`} points={points}
         fill={`rgba(${rgb},${(light*0.10 + 0.03).toFixed(3)})`}
@@ -99,21 +86,17 @@ function renderMesh(
       />
     );
   });
-
-  // Points sur sommets avant
   proj.forEach((p, vi) => {
     if (p.z2 > 0.5) {
       const a = Math.min(1, (p.z2 - 0.4) * 0.5).toFixed(3);
       els.push(<Circle key={`v${vi}`} cx={p.sx.toFixed(1)} cy={p.sy.toFixed(1)} r={0.9} fill={`rgba(${rgb},${a})`} />);
     }
   });
-
   return els;
 }
 
-// ─────────────────────────────────────────────────────────────
-// UTILITAIRES
-// ─────────────────────────────────────────────────────────────
+// ─── Utilitaires ─────────────────────────────────────────────────────────────
+
 function buildOrbitPath(rx: number, ry: number, tilt: number, cx: number, cy: number): string {
   const tr = tilt * Math.PI / 180;
   let d = '';
@@ -142,11 +125,13 @@ function buildContinents(cx: number, cy: number, R: number): string[] {
   ];
 }
 
-// ─────────────────────────────────────────────────────────────
-// COMPOSANT
-// ─────────────────────────────────────────────────────────────
-export default function OrbitalRadar({ width, height, onAsteroidPress, selectedId }: Props) {
-  const CX = width/2, CY = height/2, EARTH_R = 32;
+// ─── Composant ───────────────────────────────────────────────────────────────
+
+export default function OrbitalRadar({
+  width, height, onAsteroidPress, selectedId,
+  asteroids, planetColors, accentRgb, planetKey = 'terre',
+}: Props) {
+  const CX = width/2, CY = height/2, PLANET_R = 32;
 
   const [tv, setTv] = useState(0);
   const tvRef     = useRef(0);
@@ -157,156 +142,263 @@ export default function OrbitalRadar({ width, height, onAsteroidPress, selectedI
     return () => clearInterval(id);
   }, []);
 
-  const meshes     = useMemo(() => ASTEROIDS.map(a => genAsteroidMesh(a.id)), []);
-  const orbitPaths = useRef(ASTEROIDS.map(a => buildOrbitPath(a.rx, a.ry, a.tilt, CX, CY))).current;
-  const stars      = useRef(buildStars(width, height, 130)).current;
-  const continents = useRef(buildContinents(CX, CY, EARTH_R)).current;
+  // Remesh quand les astéroïdes changent (nouvelle planète)
+  const meshes = useMemo(
+    () => asteroids.map(a => genAsteroidMesh(a.id)),
+    [asteroids]
+  );
 
-  const astFrames = ASTEROIDS.map(a => {
+  const orbitPaths = useMemo(
+    () => asteroids.map(a => buildOrbitPath(a.rx, a.ry, a.tilt, CX, CY)),
+    [asteroids, CX, CY]
+  );
+
+  const stars      = useRef(buildStars(width, height, 130)).current;
+  const continents = useRef(buildContinents(CX, CY, PLANET_R)).current;
+
+  const astFrames = asteroids.map(a => {
     const pos = computeOrbitalPosition(
-      {id:a.id, rx:a.rx, ry:a.ry, tilt:a.tilt, speed:a.speed, phase:a.phase},
+      { id: a.id, rx: a.rx, ry: a.ry, tilt: a.tilt, speed: a.speed, phase: a.phase },
       tv, CX, CY
     );
-    // Taille VISUELLE de l'astéroïde dans le radar — base généreuse
     const displayR = (15 + pos.depth * 14) * pos.scale;
     const pulse    = 0.78 + 0.22 * Math.sin(tv * 2.5 + a.id);
     const alpha    = Math.max(0.42, pos.depth);
     return { ...pos, displayR, pulse, alpha, asteroid: a };
   });
 
-  astPosRef.current = astFrames.map(f => ({x:f.x, y:f.y, r:f.displayR}));
-  const sorted = [...astFrames].sort((a,b) => a.depth - b.depth);
+  astPosRef.current = astFrames.map(f => ({ x: f.x, y: f.y, r: f.displayR }));
+  const sorted = [...astFrames].sort((a, b) => a.depth - b.depth);
 
-  const handleTouch = (e:any) => {
-    const {locationX:mx, locationY:my} = e.nativeEvent;
-    for (let i = astPosRef.current.length-1; i >= 0; i--) {
+  const handleTouch = (e: any) => {
+    const { locationX: mx, locationY: my } = e.nativeEvent;
+    for (let i = astPosRef.current.length - 1; i >= 0; i--) {
       const p = astPosRef.current[i];
       if (!p) continue;
-      if (Math.sqrt((mx-p.x)**2+(my-p.y)**2) < p.r*1.8+14) {
-        onAsteroidPress(ASTEROIDS[i]); return;
+      if (Math.sqrt((mx-p.x)**2 + (my-p.y)**2) < p.r*1.8+14) {
+        onAsteroidPress(asteroids[i]); return;
       }
     }
   };
 
   const ringAngle = (tv*12)%360;
 
+  // Couleurs planète dynamiques
+  const [pCol1, pCol2, pCol3] = planetColors;
+
   return (
     <TouchableWithoutFeedback onPress={handleTouch}>
-      <View style={{width, height}}>
+      <View style={{ width, height }}>
         <Svg width={width} height={height}>
           <Defs>
-            <RadialGradient id="earthCore" cx="38%" cy="35%" r="68%">
-              <Stop offset="0%"   stopColor="#4fc3f7" stopOpacity="0.9"/>
-              <Stop offset="25%"  stopColor="#2196f3" stopOpacity="1"/>
-              <Stop offset="55%"  stopColor="#1565c0" stopOpacity="1"/>
-              <Stop offset="80%"  stopColor="#0d3a7a" stopOpacity="1"/>
-              <Stop offset="100%" stopColor="#020d20" stopOpacity="1"/>
-            </RadialGradient>
-            <RadialGradient id="earthGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%"   stopColor="#1e88e5" stopOpacity="0.18"/>
-              <Stop offset="55%"  stopColor="#1565c0" stopOpacity="0.07"/>
-              <Stop offset="100%" stopColor="#1565c0" stopOpacity="0"/>
-            </RadialGradient>
-            <ClipPath id="earthClip">
-              <Circle cx={CX} cy={CY} r={EARTH_R}/>
+            {planetKey === 'terre' ? (
+              <>
+                <RadialGradient id="planetCore" cx="35%" cy="30%" r="70%">
+                  <Stop offset="0%"   stopColor="#6ec6f5" stopOpacity="1"/>
+                  <Stop offset="30%"  stopColor="#1e78d4" stopOpacity="1"/>
+                  <Stop offset="70%"  stopColor="#0d3f8a" stopOpacity="1"/>
+                  <Stop offset="100%" stopColor="#071e4a" stopOpacity="1"/>
+                </RadialGradient>
+                <RadialGradient id="planetGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%"   stopColor="#4aa8ff" stopOpacity="0.14"/>
+                  <Stop offset="60%"  stopColor="#1a5bbf" stopOpacity="0.05"/>
+                  <Stop offset="100%" stopColor="#0a2050" stopOpacity="0"/>
+                </RadialGradient>
+              </>
+            ) : (
+              <>
+                <RadialGradient id="planetCore" cx="38%" cy="35%" r="68%">
+                  <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.9"/>
+                  <Stop offset="40%"  stopColor={pCol2} stopOpacity="1"/>
+                  <Stop offset="100%" stopColor={pCol3} stopOpacity="1"/>
+                </RadialGradient>
+                <RadialGradient id="planetGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.18"/>
+                  <Stop offset="55%"  stopColor={pCol2} stopOpacity="0.07"/>
+                  <Stop offset="100%" stopColor={pCol3} stopOpacity="0"/>
+                </RadialGradient>
+              </>
+            )}
+            <ClipPath id="planetClip">
+              <Circle cx={CX} cy={CY} r={PLANET_R}/>
             </ClipPath>
           </Defs>
 
           {/* Étoiles */}
-          {stars.map((s,i) => (
-            <Circle key={`st${i}`} cx={s.x} cy={s.y} r={s.rv} fill={`rgba(200,225,255,${s.op.toFixed(2)})`}/>
+          {stars.map((s, i) => (
+            <Circle key={`st${i}`} cx={s.x} cy={s.y} r={s.rv}
+              fill={`rgba(200,225,255,${s.op.toFixed(2)})`}/>
           ))}
 
-          {/* Grille radar */}
-          {[45,85,125,168].map((r,i) => (
-            <Circle key={`gr${r}`} cx={CX} cy={CY} r={r}
-              stroke={`rgba(0,229,255,${(0.065-i*0.01).toFixed(3)})`} strokeWidth={0.5} fill="none"/>
-          ))}
-          <Line x1={CX-195} y1={CY} x2={CX+195} y2={CY} stroke="rgba(0,229,255,0.04)" strokeWidth={0.5}/>
-          <Line x1={CX} y1={CY-195} x2={CX} y2={CY+195} stroke="rgba(0,229,255,0.04)" strokeWidth={0.5}/>
+
 
           {/* Orbites */}
-          {ASTEROIDS.map((a,i) => {
-            const isSel = a.id===selectedId;
-            const rgb = a.id===3?'255,61,61':'0,229,255';
-            // Position courante sur l'orbite pour le marqueur
-            const frame = astFrames.find(f => f.asteroid.id === a.id);
+          {asteroids.map((a, i) => {
+            const isSel  = a.id === selectedId;
+            const rgb    = a.rgb;
+            const frame  = astFrames.find(f => f.asteroid.id === a.id);
             return (
               <G key={`orb${a.id}`}>
                 <Path d={orbitPaths[i]}
-                  stroke={`rgba(${rgb},${isSel?.28:.08})`}
-                  strokeWidth={isSel?.9:.4} strokeDasharray={isSel?undefined:'3 8'} fill="none"/>
-                {/* Petit losange sur la position courante si sélectionné */}
+                  stroke={`rgba(${rgb},${isSel ? .28 : .08})`}
+                  strokeWidth={isSel ? .9 : .4}
+                  strokeDasharray={isSel ? undefined : '3 8'}
+                  fill="none"/>
                 {isSel && frame && (
-                  <G>
-                    <Circle cx={frame.x} cy={frame.y} r={3.5}
-                      fill="none" stroke={`rgba(${rgb},0.8)`} strokeWidth={1}/>
-                  </G>
+                  <Circle cx={frame.x} cy={frame.y} r={3.5}
+                    fill="none" stroke={`rgba(${rgb},0.8)`} strokeWidth={1}/>
                 )}
               </G>
             );
           })}
 
-          {/* Terre */}
-          <Circle cx={CX} cy={CY} r={EARTH_R+35} fill="url(#earthGlow)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R+15} fill="rgba(30,130,255,0.04)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R+10} fill="rgba(30,140,255,0.06)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R+6}  fill="rgba(30,150,255,0.09)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R+3}  fill="rgba(30,160,255,0.12)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R} fill="url(#earthCore)"/>
-          <G clipPath="url(#earthClip)">
-            {continents.map((d,i) => <Path key={`ct${i}`} d={d} fill="rgba(33,150,243,0.5)"/>)}
-            <Path d={`M${CX-EARTH_R*.65},${CY-EARTH_R*.08} q${EARTH_R*.3},${-EARTH_R*.14} ${EARTH_R*.58},${EARTH_R*.06}`}
-              stroke="rgba(255,255,255,0.11)" strokeWidth={3} fill="none" strokeLinecap="round"/>
-            <Path d={`M${CX+EARTH_R*.08},${CY+EARTH_R*.48} q${EARTH_R*.22},${-EARTH_R*.1} ${EARTH_R*.42},${EARTH_R*.06}`}
-              stroke="rgba(255,255,255,0.07)" strokeWidth={2.5} fill="none" strokeLinecap="round"/>
-          </G>
-          <Circle cx={CX-EARTH_R*.28} cy={CY-EARTH_R*.28} r={EARTH_R*.3} fill="rgba(255,255,255,0.09)"/>
-          <Circle cx={CX} cy={CY} r={EARTH_R} stroke="rgba(100,200,255,0.22)" strokeWidth={1.5} fill="none"/>
+          {/* Planète centrale */}
+          <Circle cx={CX} cy={CY} r={PLANET_R+35} fill="url(#planetGlow)"/>
+          {planetKey === 'terre' ? (
+            <>
+              {/* Halo atmosphérique subtil */}
+              <Circle cx={CX} cy={CY} r={PLANET_R+8} fill="rgba(30,90,200,0.04)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+4} fill="rgba(50,120,220,0.07)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+1.5} fill="rgba(80,150,240,0.12)"/>
+
+              {/* Corps — océan bleu profond */}
+              <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
+
+              <G clipPath="url(#planetClip)">
+                {/* Ombre nuit — côté droit */}
+                <Circle cx={CX+PLANET_R*0.68} cy={CY} r={PLANET_R}
+                  fill="rgba(0,4,18,0.42)"/>
+
+                {/* — CONTINENTS petits et précis — */}
+
+                {/* Europe / Asie ouest (petit bloc nord) */}
+                <Path d={`
+                  M${CX+PLANET_R*.04},${CY-PLANET_R*.50}
+                  c${PLANET_R*.10},${-PLANET_R*.04} ${PLANET_R*.22},${-PLANET_R*.02} ${PLANET_R*.26},${PLANET_R*.06}
+                  c${PLANET_R*.04},${PLANET_R*.08} ${-PLANET_R*.02},${PLANET_R*.14} ${-PLANET_R*.10},${PLANET_R*.16}
+                  c${-PLANET_R*.10},${PLANET_R*.02} ${-PLANET_R*.20},${-PLANET_R*.04} ${-PLANET_R*.22},${-PLANET_R*.12}
+                  c${-PLANET_R*.02},${-PLANET_R*.06} ${PLANET_R*.06},${-PLANET_R*.10} ${PLANET_R*.06},${-PLANET_R*.10} Z
+                `} fill="rgba(48,95,52,0.92)"/>
+
+                {/* Asie centrale / est */}
+                <Path d={`
+                  M${CX+PLANET_R*.26},${CY-PLANET_R*.48}
+                  c${PLANET_R*.14},${-PLANET_R*.06} ${PLANET_R*.28},${PLANET_R*.00} ${PLANET_R*.28},${PLANET_R*.10}
+                  c${PLANET_R*.00},${PLANET_R*.10} ${-PLANET_R*.10},${PLANET_R*.16} ${-PLANET_R*.22},${PLANET_R*.14}
+                  c${-PLANET_R*.12},${-PLANET_R*.02} ${-PLANET_R*.18},${-PLANET_R*.10} ${-PLANET_R*.14},${-PLANET_R*.18}
+                  c${PLANET_R*.04},${-PLANET_R*.06} ${PLANET_R*.08},${-PLANET_R*.06} ${PLANET_R*.08},${-PLANET_R*.06} Z
+                `} fill="rgba(44,88,48,0.88)"/>
+
+                {/* Afrique — forme effilée vers le bas */}
+                <Path d={`
+                  M${CX+PLANET_R*.10},${CY-PLANET_R*.08}
+                  c${PLANET_R*.08},${-PLANET_R*.04} ${PLANET_R*.16},${PLANET_R*.00} ${PLANET_R*.16},${PLANET_R*.10}
+                  c${PLANET_R*.00},${PLANET_R*.12} ${-PLANET_R*.04},${PLANET_R*.24} ${-PLANET_R*.10},${PLANET_R*.32}
+                  c${-PLANET_R*.04},${PLANET_R*.06} ${-PLANET_R*.10},${PLANET_R*.06} ${-PLANET_R*.14},${PLANET_R*.00}
+                  c${-PLANET_R*.06},${-PLANET_R*.10} ${-PLANET_R*.06},${-PLANET_R*.24} ${-PLANET_R*.02},${-PLANET_R*.34}
+                  c${PLANET_R*.04},${-PLANET_R*.08} ${PLANET_R*.10},${-PLANET_R*.08} ${PLANET_R*.10},${-PLANET_R*.08} Z
+                `} fill="rgba(56,104,46,0.85)"/>
+
+                {/* Amérique du Nord — compact */}
+                <Path d={`
+                  M${CX-PLANET_R*.48},${CY-PLANET_R*.38}
+                  c${PLANET_R*.08},${-PLANET_R*.08} ${PLANET_R*.18},${-PLANET_R*.06} ${PLANET_R*.20},${PLANET_R*.04}
+                  c${PLANET_R*.02},${PLANET_R*.10} ${-PLANET_R*.02},${PLANET_R*.22} ${-PLANET_R*.08},${PLANET_R*.28}
+                  c${-PLANET_R*.08},${PLANET_R*.08} ${-PLANET_R*.18},${PLANET_R*.06} ${-PLANET_R*.20},${-PLANET_R*.04}
+                  c${-PLANET_R*.04},${-PLANET_R*.12} ${PLANET_R*.00},${-PLANET_R*.24} ${PLANET_R*.08},${-PLANET_R*.28} Z
+                `} fill="rgba(52,100,50,0.83)"/>
+
+                {/* Amérique du Sud */}
+                <Path d={`
+                  M${CX-PLANET_R*.34},${CY+PLANET_R*.10}
+                  c${PLANET_R*.08},${-PLANET_R*.04} ${PLANET_R*.14},${PLANET_R*.02} ${PLANET_R*.12},${PLANET_R*.14}
+                  c${-PLANET_R*.02},${PLANET_R*.14} ${-PLANET_R*.08},${PLANET_R*.24} ${-PLANET_R*.14},${PLANET_R*.22}
+                  c${-PLANET_R*.08},${-PLANET_R*.02} ${-PLANET_R*.10},${-PLANET_R*.14} ${-PLANET_R*.08},${-PLANET_R*.26}
+                  c${PLANET_R*.02},${-PLANET_R*.10} ${PLANET_R*.10},${-PLANET_R*.10} ${PLANET_R*.10},${-PLANET_R*.10} Z
+                `} fill="rgba(48,96,46,0.80)"/>
+
+                {/* Australie — petit bloc */}
+                <Path d={`
+                  M${CX+PLANET_R*.40},${CY+PLANET_R*.26}
+                  c${PLANET_R*.08},${-PLANET_R*.02} ${PLANET_R*.14},${PLANET_R*.04} ${PLANET_R*.12},${PLANET_R*.12}
+                  c${-PLANET_R*.02},${PLANET_R*.08} ${-PLANET_R*.10},${PLANET_R*.10} ${-PLANET_R*.16},${PLANET_R*.06}
+                  c${-PLANET_R*.06},${-PLANET_R*.06} ${-PLANET_R*.04},${-PLANET_R*.14} ${PLANET_R*.04},${-PLANET_R*.18} Z
+                `} fill="rgba(60,106,44,0.78)"/>
+
+
+              </G>
+
+
+
+              {/* Anneau atmosphérique — très fin */}
+              <Circle cx={CX} cy={CY} r={PLANET_R}
+                stroke="rgba(140,210,255,0.40)" strokeWidth={1} fill="none"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+2.5}
+                stroke="rgba(100,175,255,0.16)" strokeWidth={1.5} fill="none"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+5}
+                stroke="rgba(70,140,230,0.07)" strokeWidth={2} fill="none"/>
+            </>
+          ) : (
+            <>
+              <Circle cx={CX} cy={CY} r={PLANET_R+10} fill={`rgba(${accentRgb},0.06)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+6}  fill={`rgba(${accentRgb},0.09)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+3}  fill={`rgba(${accentRgb},0.12)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
+              <G clipPath="url(#planetClip)">
+                {continents.map((d, i) => (
+                  <Path key={`ct${i}`} d={d} fill={`rgba(${accentRgb},0.28)`}/>
+                ))}
+                <Path
+                  d={`M${CX-PLANET_R*.65},${CY-PLANET_R*.08} q${PLANET_R*.3},${-PLANET_R*.14} ${PLANET_R*.58},${PLANET_R*.06}`}
+                  stroke="rgba(255,255,255,0.11)" strokeWidth={3} fill="none" strokeLinecap="round"/>
+              </G>
+              <Circle cx={CX-PLANET_R*.28} cy={CY-PLANET_R*.28} r={PLANET_R*.3}
+                fill="rgba(255,255,255,0.09)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R}
+                stroke={`rgba(${accentRgb},0.22)`} strokeWidth={1.5} fill="none"/>
+            </>
+          )}
+
+          {/* Anneaux orbitaux */}
           {[0,1,2].map(i => {
-            const rr = EARTH_R+8+i*7;
+            const rr = PLANET_R+8+i*7;
             return <Ellipse key={`er${i}`} cx={CX} cy={CY} rx={rr} ry={rr*0.27}
-              stroke={`rgba(0,229,255,${(0.18-i*0.045).toFixed(3)})`}
+              stroke={`rgba(${accentRgb},${(0.18-i*0.045).toFixed(3)})`}
               strokeWidth={i===0?1:0.5} fill="none"/>;
           })}
           <G rotation={ringAngle} origin={`${CX},${CY}`}>
-            <Ellipse cx={CX} cy={CY} rx={EARTH_R+2} ry={(EARTH_R+2)*0.28}
-              stroke="rgba(0,229,255,0.08)" strokeWidth={0.5} strokeDasharray="2 5" fill="none"/>
+            <Ellipse cx={CX} cy={CY} rx={PLANET_R+2} ry={(PLANET_R+2)*0.28}
+              stroke={`rgba(${accentRgb},0.08)`} strokeWidth={0.5}
+              strokeDasharray="2 5" fill="none"/>
           </G>
-          <SvgText x={CX+EARTH_R+4} y={CY-EARTH_R-4}
-            fontSize={6} fill="rgba(0,229,255,0.3)" fontFamily="monospace" letterSpacing={2}
-          >TERRE</SvgText>
 
-          {/* ── ASTÉROÏDES 3D WIREFRAME ── */}
-          {sorted.map(({ x, y, displayR, pulse, alpha, asteroid }) => {
+          {/* Label planète */}
+          <SvgText x={CX+PLANET_R+4} y={CY-PLANET_R-4}
+            fontSize={6} fill={`rgba(${accentRgb},0.3)`}
+            fontFamily="monospace" letterSpacing={2}
+          >{asteroids.length > 0 ? '' : 'CHARGEMENT'}</SvgText>
+
+          {/* Astéroïdes 3D Wireframe */}
+          {sorted.map(({ x, y, displayR, asteroid }, frameIdx) => {
             const isSel  = asteroid.id === selectedId;
             const rgb    = asteroid.rgb;
-            const col    = asteroid.color;
-            const mesh   = meshes[asteroid.id];
+            const mesh   = meshes[frameIdx] ?? meshes[0];
+            if (!mesh) return null;
 
-            // Angles de rotation continus
             const ay = tv * (0.80 + asteroid.id * 0.15);
             const ax = tv * (0.28 + asteroid.id * 0.07);
-
-            // Scale 3D = taille visuelle souhaitée dans le radar
-            // displayR est le rayon "orbital" — on veut que le mesh soit bien visible
             const scale3D = displayR * 1.05;
-
             const lx = x + displayR * 1.4 + 4;
             const ly = y - displayR * 0.3;
 
             return (
-              <G key={`ast${asteroid.id}`}>
-
-                {/* ── WIREFRAME 3D — pas de halo ── */}
+              <G key={`ast${asteroid.id}_${asteroid.name}`}>
                 <G>{renderMesh(mesh, ax, ay, x, y, scale3D, rgb)}</G>
 
-                {/* Alerte */}
                 {asteroid.alert && Math.sin(tv*4) > 0.3 && (
-                  <Circle cx={x+displayR*0.9} cy={y-displayR*1.2} r={2.2} fill={col}/>
+                  <Circle cx={x+displayR*0.9} cy={y-displayR*1.2} r={2.2} fill={asteroid.color}/>
                 )}
 
-                {/* Label — position ancrée sur x,y courant */}
                 <Line
                   x1={x+displayR*0.9} y1={y-displayR*0.2}
                   x2={lx-2} y2={ly-2}
@@ -323,7 +415,6 @@ export default function OrbitalRadar({ width, height, onAsteroidPress, selectedI
                     fontFamily="monospace" letterSpacing={1}
                   >{asteroid.cls}</SvgText>
                 )}
-
               </G>
             );
           })}
