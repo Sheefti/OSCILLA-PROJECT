@@ -1,7 +1,3 @@
-/**
- * src/screens/Dashboard.tsx
- * Dashboard principal Oscilla — avec PlanetNav droite et changement de planète dynamique.
- */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -10,6 +6,7 @@ import {
   useWindowDimensions, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 
 import OrbitalRadar  from '../components/OrbitalRadar/OrbitalRadar';
@@ -19,7 +16,6 @@ import { PLANETS, PlanetAsteroidData } from '../theme/planets';
 import { Colors }   from '../theme/colors';
 import api          from '../services/api';
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { height } = useWindowDimensions();
@@ -28,7 +24,6 @@ export default function Dashboard() {
 
   const [radarSize, setRadarSize] = useState({ w: 0, h: 0 });
 
-  // ── État planète ──────────────────────────────────────────────────────────
   const [selectedPlanetKey, setSelectedPlanetKey] = useState<string>('terre');
   const [asteroids, setAsteroids]                 = useState<PlanetAsteroidData[]>(
     PLANETS['terre'].fallbackAsteroids
@@ -36,7 +31,6 @@ export default function Dashboard() {
   const [isLoading, setIsLoading]                 = useState(false);
   const [selectedAsteroid, setSelectedAsteroid]   = useState<PlanetAsteroidData | null>(null);
 
-  // ── Fade de transition du radar ───────────────────────────────────────────
   const radarOpacity = useRef(new Animated.Value(1)).current;
 
   const switchPlanet = useCallback(async (key: string) => {
@@ -45,22 +39,18 @@ export default function Dashboard() {
     const planet = PLANETS[key];
     if (!planet) return;
 
-    // 1. Flash out
     Animated.timing(radarOpacity, {
       toValue: 0, duration: 150, useNativeDriver: true,
     }).start(async () => {
-      // 2. Données statiques immédiates
       setSelectedPlanetKey(key);
       setAsteroids(planet.fallbackAsteroids);
       setSelectedAsteroid(null);
       setIsLoading(true);
 
-      // 3. Flash in
       Animated.timing(radarOpacity, {
         toValue: 1, duration: 200, useNativeDriver: true,
       }).start();
 
-      // 4. Appel API en arrière-plan
       try {
         const response = await api.get('/api/neo/by-body', {
           params: { body: planet.nasaBody, size: 4 },
@@ -69,7 +59,6 @@ export default function Dashboard() {
         if (response.data?.success && response.data.data?.asteroids?.length > 0) {
           const raw = response.data.data.asteroids;
 
-          // Mapper les données NASA vers notre format PlanetAsteroidData
           const mapped: PlanetAsteroidData[] = raw.map((neo: any, idx: number) => ({
             id:    idx,
             name:  neo.name,
@@ -92,9 +81,7 @@ export default function Dashboard() {
 
           setAsteroids(mapped);
         }
-        // Si l'API ne trouve rien pour cette planète, on garde les fallbacks
       } catch (err) {
-        // Erreur silencieuse — on reste sur les données statiques
         console.warn('[Dashboard] API fetch failed, using fallback data:', err);
       } finally {
         setIsLoading(false);
@@ -102,10 +89,7 @@ export default function Dashboard() {
     });
   }, [selectedPlanetKey, radarOpacity]);
 
-  // ── Charge la Terre au démarrage ──────────────────────────────────────────
   useEffect(() => {
-    // On laisse les fallbacks au lancement pour ne pas bloquer le rendu
-    // et on enrichit avec l'API après 500ms
     const timer = setTimeout(() => {
       setIsLoading(true);
       api.get('/api/neo/by-body', { params: { body: 'earth', size: 4 } })
@@ -135,17 +119,14 @@ export default function Dashboard() {
             setAsteroids(mapped);
           }
         })
-        .catch(() => {}) // Silencieux
+        .catch(() => {})
         .finally(() => setIsLoading(false));
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   function handleAsteroidPress(a: PlanetAsteroidData) {
     setSelectedAsteroid(prev => prev?.id === a.id ? null : a);
-    // Passe l'objet complet sérialisé vers neo-details pour afficher
-    // exactement l'astéroïde cliqué (pas une correspondance par ID statique)
     router.push({
       pathname: '/radar/neo-details',
       params: { data: JSON.stringify({
@@ -164,7 +145,6 @@ export default function Dashboard() {
 
   const currentPlanet = PLANETS[selectedPlanetKey];
 
-  // ── Scanline ──────────────────────────────────────────────────────────────
   const scanY = useRef(new Animated.Value(-2)).current;
   useEffect(() => {
     Animated.loop(
@@ -179,13 +159,29 @@ export default function Dashboard() {
     <View style={[styles.container, { flex: 1 }]}>
       <StatusBar hidden />
 
-      {/* Scanline */}
-      <Animated.View style={[styles.scanline, { transform: [{ translateY: scanY }] }]} />
+      <View style={styles.gridOverlay} pointerEvents="none">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <View key={`gv${i}`} style={[styles.gridLineV, { left: `${(i / 30) * 100}%` as any }]} />
+        ))}
+        {Array.from({ length: 18 }).map((_, i) => (
+          <View key={`gh${i}`} style={[styles.gridLineH, { top: `${(i / 18) * 100}%` as any }]} />
+        ))}
+      </View>
 
-      {/* Main */}
+      <Animated.View
+        style={[styles.scanlineWrap, { transform: [{ translateY: scanY }] }]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['transparent', 'rgba(255,255,255,0.10)', 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.scanlineGradient}
+        />
+      </Animated.View>
+
       <View style={styles.main}>
 
-        {/* Panneau gauche — télémétrie */}
         <View style={[styles.leftPanel, { width: LEFT_WIDTH }]}>
           <LeftPanel
             selectedAsteroid={selectedAsteroid}
@@ -196,7 +192,6 @@ export default function Dashboard() {
           />
         </View>
 
-        {/* Radar central */}
         <Animated.View
           style={{ flex: 1, opacity: radarOpacity }}
           onLayout={(e) => {
@@ -216,7 +211,6 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Indicateur de chargement API */}
           {isLoading && (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="small" color={currentPlanet.accentCol} />
@@ -227,7 +221,6 @@ export default function Dashboard() {
           )}
         </Animated.View>
 
-        {/* Nav bar planètes — droite */}
         <PlanetNav
           selectedPlanet={selectedPlanetKey}
           onSelectPlanet={switchPlanet}
@@ -239,7 +232,6 @@ export default function Dashboard() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -247,9 +239,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden', borderRadius: 0,
     flexDirection: 'column',
   },
-  scanline: {
+
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  gridLineV: {
+    position: 'absolute', top: 0, bottom: 0, width: 1,
+    backgroundColor: 'rgba(255,255,255,0.018)',
+  },
+  gridLineH: {
     position: 'absolute', left: 0, right: 0, height: 1,
-    backgroundColor: 'rgba(255,255,255,0.07)', zIndex: 99,
+    backgroundColor: 'rgba(255,255,255,0.018)',
+  },
+
+  scanlineWrap: {
+    position: 'absolute', left: 0, right: 0, height: 1, zIndex: 99,
+  },
+  scanlineGradient: {
+    height: 1, flex: 1,
   },
   main: { flex: 1, flexDirection: 'row' },
   leftPanel: {
@@ -267,3 +275,4 @@ const styles = StyleSheet.create({
     fontFamily: 'ShareTechMono_400Regular', fontSize: 7, letterSpacing: 2,
   },
 });
+

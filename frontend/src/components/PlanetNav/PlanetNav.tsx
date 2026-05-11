@@ -1,18 +1,13 @@
-/**
- * src/components/PlanetNav/PlanetNav.tsx
- * Barre de navigation verticale droite — sélection de la planète cible.
- * Largeur fixe 58px, liste scrollable manuellement.
- * Design fidèle à la maquette oscilla-v3.html.
- */
+
 
 import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
   Animated,
+  Easing,
 } from 'react-native';
 import Svg, {
   Circle, Ellipse, Path, G, Rect,
@@ -24,8 +19,6 @@ interface Props {
   selectedPlanet: string;
   onSelectPlanet: (key: string) => void;
 }
-
-// ─── Icônes planètes (SVG 22×22) ─────────────────────────────────────────────
 
 function MercureIcon() {
   return (
@@ -165,7 +158,7 @@ function SaturneIcon() {
         </LinearGradient>
         <ClipPath id="satpl2"><Circle cx={16} cy={12.5} r={7.2}/></ClipPath>
       </Defs>
-      {/* Ring behind */}
+      
       <Ellipse cx={16} cy={14.5} rx={15.5} ry={4} fill="none" stroke="url(#ringA2)" strokeWidth={2} opacity={0.75}/>
       <Circle cx={16} cy={12.5} r={7.2} fill="url(#satg2)"/>
       <G clipPath="url(#satpl2)">
@@ -173,7 +166,7 @@ function SaturneIcon() {
         <Rect x={8.8} y={13.5} width={14.4} height={1.5} fill="#906020" opacity={0.4}  rx={0.2}/>
       </G>
       <Circle cx={16} cy={12.5} r={7.2} stroke="#e8d5a0" strokeWidth={0.5} fill="none" opacity={0.4}/>
-      {/* Ring front */}
+      
       <Path d="M8 16.2 Q16 18.8 24 16.2" stroke="url(#ringA2)" strokeWidth={2} fill="none" opacity={0.8}/>
     </Svg>
   );
@@ -190,7 +183,7 @@ function UranusIcon() {
           <Stop offset="100%" stopColor="#023030"/>
         </RadialGradient>
       </Defs>
-      {/* Vertical rings (unique axial tilt) */}
+      
       <Ellipse cx={16} cy={12} rx={3.5} ry={11.5} fill="none" stroke="#5ac8c8" strokeWidth={1.2} opacity={0.22}/>
       <Ellipse cx={16} cy={12} rx={4.8} ry={13.5} fill="none" stroke="#40b0b0" strokeWidth={0.8} opacity={0.16}/>
       <Circle cx={16} cy={12} r={6.8} fill="url(#urg2)"/>
@@ -229,11 +222,9 @@ const PLANET_ICONS: Record<string, () => React.ReactNode> = {
   neptune: () => <NeptuneIcon />,
 };
 
-// ─── Composant principal ─────────────────────────────────────────────────────
-
 export default function PlanetNav({ selectedPlanet, onSelectPlanet }: Props) {
-  const dotAnim = useRef(new Animated.Value(1)).current;
-
+  const dotAnim   = useRef(new Animated.Value(1)).current;
+  const scrollAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -242,14 +233,37 @@ export default function PlanetNav({ selectedPlanet, onSelectPlanet }: Props) {
       ])
     ).start();
   }, []);
+  const ITEM_H      = 47;
+  const DIVIDER_H   = 22;
+  const TOTAL_H     = (INNER_PLANETS.length + OUTER_PLANETS.length) * ITEM_H + 2 * DIVIDER_H;
+  const SCROLL_DIST = TOTAL_H * 0.45;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollAnim, {
+          toValue: SCROLL_DIST, duration: 8100,
+          easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.delay(900),
+        Animated.timing(scrollAnim, {
+          toValue: 0, duration: 8100,
+          easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+        }),
+        Animated.delay(900),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [SCROLL_DIST]);
 
   return (
     <View style={styles.nav}>
 
-      {/* Ligne de lueur gauche */}
+      
       <View style={styles.glowEdge} />
 
-      {/* Header */}
+      
       <View style={styles.header}>
         <Text style={styles.headerLogo}>OSC</Text>
         <View style={styles.liveRow}>
@@ -258,39 +272,42 @@ export default function PlanetNav({ selectedPlanet, onSelectPlanet }: Props) {
         </View>
       </View>
 
-      {/* Liste scrollable */}
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* INTERNE */}
-        <SectionDivider label="INTERNE" />
+      
+      <View style={styles.scrollMask}>
+        
+        <View style={[styles.fadeMask, styles.fadeMaskTop]}    pointerEvents="none" />
+        <View style={[styles.fadeMask, styles.fadeMaskBottom]} pointerEvents="none" />
 
-        {INNER_PLANETS.map((key) => (
-          <PlanetButton
-            key={key}
-            planetKey={key}
-            isActive={selectedPlanet === key}
-            onPress={() => onSelectPlanet(key)}
-          />
-        ))}
+        <Animated.View
+          style={[
+            styles.scrollTrack,
+            { transform: [{ translateY: Animated.multiply(scrollAnim, -1) }] },
+          ]}
+        >
+          
+          <SectionDivider label="INTERNE" />
+          {INNER_PLANETS.map((key) => (
+            <PlanetButton
+              key={key}
+              planetKey={key}
+              isActive={selectedPlanet === key}
+              onPress={() => onSelectPlanet(key)}
+            />
+          ))}
+          
+          <SectionDivider label="EXTERNE" />
+          {OUTER_PLANETS.map((key) => (
+            <PlanetButton
+              key={key}
+              planetKey={key}
+              isActive={selectedPlanet === key}
+              onPress={() => onSelectPlanet(key)}
+            />
+          ))}
+        </Animated.View>
+      </View>
 
-        {/* EXTERNE */}
-        <SectionDivider label="EXTERNE" />
-
-        {OUTER_PLANETS.map((key) => (
-          <PlanetButton
-            key={key}
-            planetKey={key}
-            isActive={selectedPlanet === key}
-            onPress={() => onSelectPlanet(key)}
-          />
-        ))}
-      </ScrollView>
-
-      {/* Footer */}
+      
       <View style={styles.footer}>
         <View style={styles.footerGlow} />
         <Text style={styles.footerSys}>SYS·SOL</Text>
@@ -299,8 +316,6 @@ export default function PlanetNav({ selectedPlanet, onSelectPlanet }: Props) {
     </View>
   );
 }
-
-// ─── Sous-composants ─────────────────────────────────────────────────────────
 
 function SectionDivider({ label }: { label: string }) {
   return (
@@ -345,7 +360,7 @@ function PlanetButton({
           { transform: [{ scale: scaleAnim }] },
         ]}
       >
-        {/* Active right accent bar */}
+        
         {isActive && (
           <View
             style={[
@@ -355,12 +370,12 @@ function PlanetButton({
           />
         )}
 
-        {/* Planet icon */}
+        
         <View style={[btn.iconWrap, hasRing && btn.iconWrapRing]}>
           {IconFn()}
         </View>
 
-        {/* Label */}
+        
         <Text
           style={[
             btn.code,
@@ -373,8 +388,6 @@ function PlanetButton({
     </TouchableOpacity>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   nav: {
@@ -390,7 +403,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0, top: 0, bottom: 0, width: 1,
     backgroundColor: 'transparent',
-    // Simulated edge glow via shadow trick
     shadowColor: 'rgba(255,255,255,0.18)',
     shadowOffset: { width: 1, height: 0 },
     shadowOpacity: 1,
@@ -405,7 +417,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   headerLogo: {
-    fontFamily: 'monospace',
+    fontFamily: 'Orbitron_900Black',
     fontSize: 8,
     fontWeight: '900',
     letterSpacing: 3,
@@ -430,14 +442,31 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: 'rgba(255,255,255,0.25)',
   },
-  scroll: {
+  scrollMask: {
     flex: 1,
     width: '100%',
+    overflow: 'hidden',
+    position: 'relative',
   },
-  scrollContent: {
+  scrollTrack: {
     alignItems: 'center',
     paddingVertical: 6,
     gap: 1,
+    width: '100%',
+  },
+  fadeMask: {
+    position: 'absolute',
+    left: 0, right: 0,
+    height: 24,
+    zIndex: 5,
+  },
+  fadeMaskTop: {
+    top: 0,
+    backgroundColor: 'rgba(0,2,6,0.88)',
+  },
+  fadeMaskBottom: {
+    bottom: 0,
+    backgroundColor: 'rgba(0,2,6,0.88)',
   },
   footer: {
     width: '100%',
@@ -532,3 +561,4 @@ const btn = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+

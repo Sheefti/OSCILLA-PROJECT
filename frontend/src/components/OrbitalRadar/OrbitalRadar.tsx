@@ -1,8 +1,4 @@
-/**
- * src/components/OrbitalRadar/OrbitalRadar.tsx
- * Radar orbital SVG animé — accepte désormais les astéroïdes en prop
- * pour supporter le changement de planète dynamiquement.
- */
+
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, TouchableWithoutFeedback } from 'react-native';
@@ -18,13 +14,10 @@ interface Props {
   height:          number;
   onAsteroidPress: (asteroid: PlanetAsteroidData) => void;
   selectedId:      number;
-  // Données dynamiques injectées par le Dashboard
   asteroids:       PlanetAsteroidData[];
-  planetColors:    [string, string, string]; // [col1, col2, col3] gradient planète
-  accentRgb:       string;                  // ex: "0,229,255"
+  planetColors:    [string, string, string];
+  accentRgb:       string;
 }
-
-// ─── MESH 3D — icosphère déformée ────────────────────────────────────────────
 interface Mesh { verts: number[][]; faces: number[][]; }
 
 function genAsteroidMesh(id: number): Mesh {
@@ -100,8 +93,6 @@ function renderMesh(
   return els;
 }
 
-// ─── Utilitaires ─────────────────────────────────────────────────────────────
-
 function buildOrbitPath(rx: number, ry: number, tilt: number, cx: number, cy: number): string {
   const tr = tilt * Math.PI / 180;
   let d = '';
@@ -130,8 +121,6 @@ function buildContinents(cx: number, cy: number, R: number): string[] {
   ];
 }
 
-// ─── Composant ───────────────────────────────────────────────────────────────
-
 export default function OrbitalRadar({
   width, height, onAsteroidPress, selectedId,
   asteroids, planetColors, accentRgb,
@@ -146,8 +135,6 @@ export default function OrbitalRadar({
     const id = setInterval(() => { tvRef.current += 0.006; setTv(tvRef.current); }, 16);
     return () => clearInterval(id);
   }, []);
-
-  // Remesh quand les astéroïdes changent (nouvelle planète)
   const meshes = useMemo(
     () => asteroids.map(a => genAsteroidMesh(a.id)),
     [asteroids]
@@ -187,8 +174,6 @@ export default function OrbitalRadar({
   };
 
   const ringAngle = (tv*12)%360;
-
-  // Couleurs planète dynamiques
   const [pCol1, pCol2, pCol3] = planetColors;
 
   return (
@@ -211,13 +196,13 @@ export default function OrbitalRadar({
             </ClipPath>
           </Defs>
 
-          {/* Étoiles */}
+          
           {stars.map((s, i) => (
             <Circle key={`st${i}`} cx={s.x} cy={s.y} r={s.rv}
               fill={`rgba(200,225,255,${s.op.toFixed(2)})`}/>
           ))}
 
-          {/* Grille radar */}
+          
           {[45,85,125,168].map((r, i) => (
             <Circle key={`gr${r}`} cx={CX} cy={CY} r={r}
               stroke={`rgba(${accentRgb},${(0.065-i*0.01).toFixed(3)})`}
@@ -228,7 +213,7 @@ export default function OrbitalRadar({
           <Line x1={CX} y1={CY-195} x2={CX} y2={CY+195}
             stroke={`rgba(${accentRgb},0.04)`} strokeWidth={0.5}/>
 
-          {/* Orbites */}
+          
           {asteroids.map((a, i) => {
             const isSel  = a.id === selectedId;
             const rgb    = a.rgb;
@@ -248,16 +233,19 @@ export default function OrbitalRadar({
             );
           })}
 
-          {/* Planète centrale */}
+          
           <Circle cx={CX} cy={CY} r={PLANET_R+35} fill="url(#planetGlow)"/>
           <Circle cx={CX} cy={CY} r={PLANET_R+10} fill={`rgba(${accentRgb},0.06)`}/>
           <Circle cx={CX} cy={CY} r={PLANET_R+6}  fill={`rgba(${accentRgb},0.09)`}/>
           <Circle cx={CX} cy={CY} r={PLANET_R+3}  fill={`rgba(${accentRgb},0.12)`}/>
           <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
           <G clipPath="url(#planetClip)">
-            {continents.map((d, i) => (
-              <Path key={`ct${i}`} d={d} fill={`rgba(${accentRgb},0.35)`}/>
-            ))}
+            
+            <G rotation={(tv * 3 * 180 / Math.PI) % 360} origin={`${CX},${CY}`}>
+              {continents.map((d, i) => (
+                <Path key={`ct${i}`} d={d} fill={`rgba(${accentRgb},0.35)`}/>
+              ))}
+            </G>
             <Path
               d={`M${CX-PLANET_R*.65},${CY-PLANET_R*.08} q${PLANET_R*.3},${-PLANET_R*.14} ${PLANET_R*.58},${PLANET_R*.06}`}
               stroke="rgba(255,255,255,0.11)" strokeWidth={3} fill="none" strokeLinecap="round"/>
@@ -267,7 +255,7 @@ export default function OrbitalRadar({
           <Circle cx={CX} cy={CY} r={PLANET_R}
             stroke={`rgba(${accentRgb},0.22)`} strokeWidth={1.5} fill="none"/>
 
-          {/* Anneaux orbitaux */}
+          
           {[0,1,2].map(i => {
             const rr = PLANET_R+8+i*7;
             return <Ellipse key={`er${i}`} cx={CX} cy={CY} rx={rr} ry={rr*0.27}
@@ -280,13 +268,13 @@ export default function OrbitalRadar({
               strokeDasharray="2 5" fill="none"/>
           </G>
 
-          {/* Label planète */}
+          
           <SvgText x={CX+PLANET_R+4} y={CY-PLANET_R-4}
             fontSize={6} fill={`rgba(${accentRgb},0.3)`}
             fontFamily="monospace" letterSpacing={2}
           >{asteroids.length > 0 ? '' : 'CHARGEMENT'}</SvgText>
 
-          {/* Astéroïdes 3D Wireframe */}
+          
           {sorted.map(({ x, y, displayR, asteroid }, frameIdx) => {
             const isSel  = asteroid.id === selectedId;
             const rgb    = asteroid.rgb;
@@ -332,3 +320,4 @@ export default function OrbitalRadar({
     </TouchableWithoutFeedback>
   );
 }
+
