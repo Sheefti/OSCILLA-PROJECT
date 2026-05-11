@@ -597,8 +597,6 @@ export default function AsteroidInspector({
             <View style={[styles.vc, styles.vcBL]} />
             <View style={[styles.vc, styles.vcBR]} />
 
-            {/* Anneau pulsant centré */}
-            <PulsingRing color={nameColor} />
 
             {/* Haut-droite : SCAN EN COURS + dot vert */}
             <View style={styles.scanLabelTR}>

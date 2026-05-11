@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSCILLA — Analyse Orbitale</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:  #cc3333;
+  --red2: rgba(204,51,51,0.14);
+  --amb:  #c8a84b;
+  --grn:  #2ecc71;
+  --mono: 'Share Tech Mono', monospace;
+  --orb:  'Orbitron', sans-serif;
+  --raj:  'Rajdhani', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width:100%; height:100%;
+  background:#000103;
+  overflow:hidden;
+  cursor:crosshair;
+}
+
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size:40px 40px;
+}
+
+#app {
+  position:relative;
+  width:1020px; height:480px;
+  margin:0 auto; top:50%; transform:translateY(-50%);
+  background:rgba(0,0,3,.99);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:14px; overflow:hidden;
+  display:flex; flex-direction:column;
+  z-index:10;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02), inset 0 0 220px rgba(0,0,0,.98);
+}
+
+#app::before {
+  content:''; position:absolute; top:0; left:8%; right:8%; height:1px; z-index:30;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+}
+
+.scanline {
+  position:absolute; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);
+  animation:scan 9s linear infinite; pointer-events:none; z-index:99;
+}
+@keyframes scan { 0%{top:-2px;opacity:0} 5%{opacity:1} 95%{opacity:1} 100%{top:100%;opacity:0} }
+@keyframes pls  { 0%,100%{opacity:1} 50%{opacity:.25} }
+@keyframes blk  { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ══ TOPBAR ══ */
+#topbar {
+  height:38px; flex-shrink:0;
+  display:flex; align-items:center; gap:14px;
+  padding:0 16px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.tb-back {
+  display:flex; align-items:center; gap:5px;
+  cursor:pointer; transition:opacity .18s;
+  opacity:0.4;
+  padding:4px 0;
+}
+.tb-back:hover { opacity:1; }
+.tb-back svg { width:10px; height:10px; flex-shrink:0; }
+.tb-back span {
+  font-family:var(--mono); font-size:7px; letter-spacing:2.5px;
+  color:rgba(255,255,255,.9); text-transform:uppercase;
+}
+
+.tb-sep { width:1px; height:18px; background:rgba(255,255,255,.08); flex-shrink:0; }
+
+.tb-title {
+  flex:1; text-align:center;
+  font-family:var(--orb); font-size:10px; letter-spacing:6px; color:rgba(255,255,255,.4);
+}
+.tb-title b { color:rgba(255,255,255,.75); font-weight:400; }
+
+/* Threat badge */
+.tb-threat {
+  display:flex; align-items:center; gap:6px;
+  padding:4px 10px; border-radius:4px;
+  border:1px solid rgba(204,51,51,.5);
+  background:rgba(204,51,51,.07);
+  cursor:default;
+}
+.tb-threat-dot {
+  width:5px; height:5px; border-radius:50%;
+  background:var(--red); box-shadow:0 0 8px var(--red);
+  animation:pls 1.4s ease-in-out infinite; flex-shrink:0;
+}
+.tb-threat span {
+  font-family:var(--mono); font-size:7px; letter-spacing:2px; color:var(--red);
+}
+
+/* ══ MAIN LAYOUT ══ */
+#main {
+  flex:1; display:grid;
+  grid-template-columns: 280px 1fr;
+  overflow:hidden;
+  min-height:0;
+}
+
+/* LEFT PANEL */
+#left {
+  border-right:1px solid rgba(255,255,255,.06);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+/* Object header */
+#obj-header {
+  padding:12px 14px 10px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  position:relative;
+  flex-shrink:0;
+}
+
+/* PHO danger bar on the left edge */
+#obj-header::before {
+  content:''; position:absolute; left:0; top:20%; bottom:20%; width:2px;
+  background:var(--red); box-shadow:0 0 8px var(--red); border-radius:0 1px 1px 0;
+}
+
+.obj-meta {
+  font-family:var(--mono); font-size:6.5px; letter-spacing:2px;
+  color:rgba(255,255,255,.4); margin-bottom:4px;
+}
+
+.obj-name {
+  font-family:var(--orb); font-size:26px; font-weight:900;
+  color:var(--red); letter-spacing:2px; line-height:1;
+  margin-bottom:5px;
+}
+
+.obj-class {
+  display:flex; align-items:center; gap:6px;
+}
+.obj-class-tag {
+  font-family:var(--mono); font-size:6.5px; letter-spacing:1.5px;
+  color:rgba(255,255,255,.45);
+}
+.obj-badge {
+  padding:2px 6px; border-radius:3px;
+  font-family:var(--mono); font-size:6.5px; letter-spacing:1.5px;
+  border:1px solid rgba(204,51,51,.5); background:rgba(204,51,51,.1); color:var(--red);
+}
+
+/* Data sections */
+#data-scroll {
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:none; padding:0;
+}
+#data-scroll::-webkit-scrollbar { display:none; }
+
+.data-section {
+  padding:8px 14px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+
+.section-title {
+  font-family:var(--mono); font-size:6.5px; letter-spacing:2.5px;
+  color:rgba(255,255,255,.35); margin-bottom:7px;
+  display:flex; align-items:center; gap:6px;
+}
+.section-title::before {
+  content:''; width:2px; height:10px; background:rgba(255,255,255,.35);
+  border-radius:1px; flex-shrink:0;
+}
+
+.data-row {
+  display:flex; align-items:baseline; justify-content:space-between;
+  padding:3px 0;
+  border-bottom:1px solid rgba(255,255,255,.03);
+}
+.data-row:last-child { border-bottom:none; }
+
+.data-key {
+  font-family:var(--mono); font-size:6.5px; letter-spacing:1px;
+  color:rgba(255,255,255,.38);
+}
+.data-val {
+  font-family:var(--mono); font-size:9px; letter-spacing:.5px;
+  color:rgba(255,255,255,.85); text-align:right;
+}
+.data-val.danger { color:var(--red); }
+.data-val.warn   { color:var(--amb); }
+.data-val.ok     { color:var(--grn); }
+
+/* Threat mini-gauge */
+.threat-gauge {
+  margin-top:6px; padding:8px;
+  background:rgba(204,51,51,.05);
+  border:1px solid rgba(204,51,51,.2);
+  border-radius:4px;
+  position:relative; overflow:hidden;
+}
+.threat-gauge::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(204,51,51,.4),transparent);
+}
+.tg-label {
+  font-family:var(--mono); font-size:6px; letter-spacing:2px;
+  color:rgba(204,51,51,.7); margin-bottom:5px;
+}
+.tg-bar-bg {
+  height:3px; background:rgba(255,255,255,.06); border-radius:2px; overflow:hidden; margin-bottom:4px;
+}
+.tg-bar-fill {
+  height:100%; width:72%; border-radius:2px;
+  background:linear-gradient(90deg, var(--amb), var(--red));
+  box-shadow:0 0 8px rgba(204,51,51,.5);
+  animation: barPulse 2.5s ease-in-out infinite;
+}
+@keyframes barPulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+.tg-val {
+  font-family:var(--orb); font-size:11px; font-weight:700; color:var(--red);
+  display:flex; align-items:baseline; gap:4px;
+}
+.tg-val span { font-family:var(--mono); font-size:6px; color:rgba(204,51,51,.6); }
+
+/* ══ RIGHT — VISUALIZATION ══ */
+#right {
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+
+/* canvas area */
+#viz-wrap {
+  flex:1; position:relative; overflow:hidden;
+}
+
+canvas#orb-canvas {
+  position:absolute; inset:0; width:100%; height:100%;
+}
+
+/* Corner brackets on viz */
+.vc { position:absolute; width:12px; height:12px; pointer-events:none; z-index:20; border-color:rgba(255,255,255,.25); border-style:solid; }
+.vc.tl { top:10px; left:10px;  border-width:1px 0 0 1px; }
+.vc.tr { top:10px; right:10px; border-width:1px 1px 0 0; }
+.vc.bl { bottom:40px; left:10px;  border-width:0 0 1px 1px; }
+.vc.br { bottom:40px; right:10px; border-width:0 1px 1px 0; }
+
+/* Viz overlay labels */
+.viz-label {
+  position:absolute; font-family:var(--mono); font-size:6px; letter-spacing:1.5px;
+  color:rgba(255,255,255,.35); pointer-events:none; z-index:20;
+}
+.viz-label.scan-status {
+  top:14px; right:28px;
+  display:flex; align-items:center; gap:5px;
+}
+.scan-dot {
+  width:4px; height:4px; border-radius:50%; background:var(--grn);
+  box-shadow:0 0 6px var(--grn); animation:pls 1.8s ease-in-out infinite;
+}
+.viz-label.bl-info { bottom:44px; left:28px; }
+.viz-label.br-info {
+  bottom:44px; right:28px; text-align:right;
+  display:flex; flex-direction:column; gap:2px; align-items:flex-end;
+}
+
+/* Bottom telemetry bar */
+#telemetry {
+  height:30px; flex-shrink:0;
+  border-top:1px solid rgba(255,255,255,.05);
+  display:flex; align-items:center;
+  padding:0 14px; gap:0;
+  background:rgba(255,255,255,.01);
+}
+
+.tele-item {
+  display:flex; align-items:center; gap:6px;
+  padding:0 14px; height:100%;
+  border-right:1px solid rgba(255,255,255,.05);
+}
+.tele-item:first-child { padding-left:0; }
+.tele-item:last-child { border-right:none; margin-left:auto; }
+
+.tele-label {
+  font-family:var(--mono); font-size:6px; letter-spacing:1.5px;
+  color:rgba(255,255,255,.35);
+}
+.tele-val {
+  font-family:var(--mono); font-size:8px; letter-spacing:.5px;
+  color:rgba(255,255,255,.75);
+}
+.tele-val.r { color:var(--red); }
+.tele-val.g { color:var(--grn); }
+.tele-val.a { color:var(--amb); }
+
+/* Live blinking text */
+.blink { animation:blk 1.2s step-end infinite; }
+
+/* Crosshair on canvas */
+.crosshair-ring {
+  position:absolute; pointer-events:none; z-index:15;
+  border:1px solid rgba(255,255,255,.12); border-radius:50%;
+  animation:ringPulse 3s ease-in-out infinite;
+}
+@keyframes ringPulse { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.5} 50%{transform:translate(-50%,-50%) scale(1.06);opacity:.2} }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="scanline"></div>
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="tb-back">
+      <svg viewBox="0 0 10 10" fill="none">
+        <path d="M7 2L3 5L7 8" stroke="rgba(255,255,255,0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>CATALOGUE</span>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="tb-title"><b>OSCILLA</b> · ANALYSE ORBITALE</div>
+    <div class="tb-sep"></div>
+    <div class="tb-threat">
+      <div class="tb-threat-dot"></div>
+      <span>MENACE CONFIRMÉE</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- LEFT PANEL -->
+    <div id="left">
+
+      <div id="obj-header">
+        <div class="obj-meta">NEO-ID · 2024-YR4 · EPOCH 32088</div>
+        <div class="obj-name">2024 YR₄</div>
+        <div class="obj-class">
+          <div class="obj-class-tag">CLASSE APOLLO</div>
+          <div class="obj-badge">⚠ PHO</div>
+        </div>
+      </div>
+
+      <div id="data-scroll">
+
+        <div class="data-section">
+          <div class="section-title">PARAMÈTRES ORBITAUX</div>
+          <div class="data-row">
+            <span class="data-key">DEMI-GRAND AXE</span>
+            <span class="data-val">1.134 UA</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">EXCENTRICITÉ</span>
+            <span class="data-val">0.2174</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">INCLINAISON</span>
+            <span class="data-val">6.08°</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">LONG. NŒUD ASC.</span>
+            <span class="data-val">183.2°</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">ARG. DU PÉRIHÉLIE</span>
+            <span class="data-val">102.4°</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">PÉRIODE ORBITALE</span>
+            <span class="data-val">1.21 ans</span>
+          </div>
+        </div>
+
+        <div class="data-section">
+          <div class="section-title">DONNÉES PHYSIQUES</div>
+          <div class="data-row">
+            <span class="data-key">DIAMÈTRE EST.</span>
+            <span class="data-val warn">~50 m</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">MAGNITUDE ABS.</span>
+            <span class="data-val">H 24.5</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">ALBÉDO</span>
+            <span class="data-val">0.154</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">VITESSE REL.</span>
+            <span class="data-val danger">28.74 km/s</span>
+          </div>
+        </div>
+
+        <div class="data-section">
+          <div class="section-title">APPROCHE CRITIQUE</div>
+          <div class="data-row">
+            <span class="data-key">DATE</span>
+            <span class="data-val danger blink">2032-12-22</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">DIST. MIN. TERRE</span>
+            <span class="data-val danger">0.0034 UA</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">DIST. MIN. (LD)</span>
+            <span class="data-val danger">0.003 LD</span>
+          </div>
+          <div class="data-row">
+            <span class="data-key">PROB. IMPACT</span>
+            <span class="data-val danger">1 / 83</span>
+          </div>
+
+          <div class="threat-gauge">
+            <div class="tg-label">NIVEAU DE MENACE TORINO</div>
+            <div class="tg-bar-bg"><div class="tg-bar-fill"></div></div>
+            <div class="tg-val">4 <span>/ 10 · MÉRITE SURVEILLANCE</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT — 3D VISUALIZATION -->
+    <div id="right">
+      <div id="viz-wrap">
+        <!-- Corner brackets -->
+        <div class="vc tl"></div>
+        <div class="vc tr"></div>
+        <div class="vc bl"></div>
+        <div class="vc br"></div>
+
+        <!-- Status label -->
+        <div class="viz-label scan-status">
+          SCAN EN COURS <div class="scan-dot"></div>
+        </div>
+
+        <!-- Bottom-left info -->
+        <div class="viz-label bl-info" id="lbl-dims">540 × 310 px</div>
+
+        <!-- Bottom-right info -->
+        <div class="viz-label br-info">
+          <span>ROT. AUTO · Q-SPACE</span>
+          <span id="lbl-rot">ROLL 0.0° · PITCH 0.0° · YAW 0.0°</span>
+        </div>
+
+        <!-- Pulsing ring overlay -->
+        <div class="crosshair-ring" id="ring" style="width:160px;height:160px;left:50%;top:50%;transform:translate(-50%,-50%);"></div>
+
+        <canvas id="orb-canvas"></canvas>
+      </div>
+
+      <!-- TELEMETRY BAR -->
+      <div id="telemetry">
+        <div class="tele-item">
+          <span class="tele-label">OBJETS</span>
+          <span class="tele-val">01</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">SIGNAL</span>
+          <span class="tele-val g">FORT</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">LATENCE</span>
+          <span class="tele-val">14 ms</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">PRÉCISION</span>
+          <span class="tele-val">±0.1"</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">SOURCE</span>
+          <span class="tele-val">NASA · CNEOS</span>
+        </div>
+        <div class="tele-item">
+          <span class="tele-label">STATUT</span>
+          <span class="tele-val r blink">ALERTE ACTIVE</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── WIREFRAME ASTEROID 3D ──────────────────────────────────────
+const canvas = document.getElementById('orb-canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Quaternion rotation helpers
+function mulQ(a, b) {
+  return [
+    a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],
+    a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+    a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],
+    a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0],
+  ];
+}
+function normQ(q) {
+  const m = Math.hypot(...q);
+  return q.map(v => v/m);
+}
+function rotateV(v, q) {
+  const p = [0, v[0], v[1], v[2]];
+  const qc = [q[0], -q[1], -q[2], -q[3]];
+  const r = mulQ(mulQ(q, p), qc);
+  return [r[1], r[2], r[3]];
+}
+function axisAngleQ(ax, angle) {
+  const s = Math.sin(angle/2);
+  return normQ([Math.cos(angle/2), ax[0]*s, ax[1]*s, ax[2]*s]);
+}
+
+// Build irregular asteroid geometry
+function buildAsteroid(seed, numVerts) {
+  const rng = (s) => { s = (s ^ (s << 13)) >>> 0; s = (s ^ (s >> 17)) >>> 0; s = (s ^ (s << 5)) >>> 0; return s; };
+  let s = seed;
+  const verts = [];
+  for (let i = 0; i < numVerts; i++) {
+    s = rng(s + i*1337);
+    const theta = (s % 1000) / 1000 * Math.PI * 2;
+    s = rng(s);
+    const phi = Math.acos(2 * (s % 1000) / 1000 - 1);
+    s = rng(s);
+    const r = 0.7 + (s % 1000) / 1000 * 0.65;
+    // Low-frequency deformation for cratered look
+    const lf = 1.0 + 0.35 * Math.sin(theta * 2.1 + phi * 1.7) + 0.18 * Math.sin(theta * 4.3 - phi * 3.1);
+    verts.push([
+      Math.sin(phi) * Math.cos(theta) * r * lf,
+      Math.sin(phi) * Math.sin(theta) * r * lf,
+      Math.cos(phi) * r * lf,
+    ]);
+  }
+  return verts;
+}
+
+// Simple convex-ish face builder: for each vert, connect to 3 nearest
+function buildEdges(verts) {
+  const edges = new Set();
+  for (let i = 0; i < verts.length; i++) {
+    const dists = verts.map((v, j) => ({
+      j,
+      d: Math.hypot(verts[i][0]-v[0], verts[i][1]-v[1], verts[i][2]-v[2])
+    })).filter(x => x.j !== i).sort((a,b) => a.d - b.d);
+    for (let k = 0; k < Math.min(5, dists.length); k++) {
+      const key = [i, dists[k].j].sort((a,b)=>a-b).join('-');
+      edges.add(key);
+    }
+  }
+  return [...edges].map(e => e.split('-').map(Number));
+}
+
+// Build faces (triangles) from edges — find triads
+function buildFaces(verts, edges) {
+  const adj = {};
+  for (const [a, b] of edges) {
+    if (!adj[a]) adj[a] = new Set();
+    if (!adj[b]) adj[b] = new Set();
+    adj[a].add(b); adj[b].add(a);
+  }
+  const faces = [];
+  for (const [a, b] of edges) {
+    for (const c of adj[a]) {
+      if (c !== b && adj[b].has(c)) {
+        const key = [a,b,c].sort((x,y)=>x-y).join('-');
+        faces.push([a,b,c]);
+      }
+    }
+  }
+  // dedupe
+  const seen = new Set();
+  return faces.filter(f => {
+    const k = f.slice().sort((a,b)=>a-b).join('-');
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
+const VERTS_RAW = buildAsteroid(42, 52);
+const EDGES    = buildEdges(VERTS_RAW);
+const FACES    = buildFaces(VERTS_RAW, EDGES);
+
+// Rotation state
+let quat = [1,0,0,0];
+const AXIS_Y  = [0,1,0];
+const AXIS_X  = [1,0,0];
+const AXIS_Z  = [0,0,1];
+
+let roll = 0, pitch = 0, yaw = 0;
+
+function project(v, cx, cy, scale) {
+  const fov = 3.5;
+  const z   = v[2] + fov;
+  const px  = cx + (v[0] / z) * scale;
+  const py  = cy - (v[1] / z) * scale;
+  return { x: px, y: py, z: v[2] };
+}
+
+// Amber/gold color palette matching the screenshot
+const FACE_COLOR  = 'rgba(200,168,75,';
+const EDGE_COLOR  = 'rgba(200,168,75,';
+const GLOW_COLOR  = 'rgba(200,168,75,0.12)';
+
+let t = 0;
+function render() {
+  t += 0.006;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Subtle background radial glow
+  const grd = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, H*0.55);
+  grd.addColorStop(0, 'rgba(200,140,30,0.07)');
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+
+  // Auto rotation — slow tumble
+  const dqY = axisAngleQ(AXIS_Y, 0.005);
+  const dqX = axisAngleQ(AXIS_X, 0.0018);
+  const dqZ = axisAngleQ(AXIS_Z, 0.0009);
+  quat = normQ(mulQ(mulQ(mulQ(quat, dqY), dqX), dqZ));
+
+  // Accumulate euler-ish readout
+  roll  = ((roll  + 0.0009 * 180/Math.PI) % 360);
+  pitch = ((pitch + 0.0018 * 180/Math.PI) % 360);
+  yaw   = ((yaw   + 0.005  * 180/Math.PI) % 360);
+
+  const rotLabel = document.getElementById('lbl-rot');
+  if (rotLabel) {
+    rotLabel.textContent = `ROLL ${roll.toFixed(1)}° · PITCH ${pitch.toFixed(1)}° · YAW ${yaw.toFixed(1)}°`;
+  }
+
+  const scale = Math.min(W, H) * 0.5;
+  const cx = W / 2, cy = H / 2;
+
+  // Rotate all verts
+  const proj = VERTS_RAW.map(v => {
+    const rv = rotateV(v, quat);
+    return { raw: rv, p: project(rv, cx, cy, scale) };
+  });
+
+  // Compute face depths and normals for culling + shading
+  const faceData = FACES.map(([a,b,c]) => {
+    const va = proj[a].raw, vb = proj[b].raw, vc = proj[c].raw;
+    // Face center depth
+    const depth = (va[2] + vb[2] + vc[2]) / 3;
+    // Normal for backface culling
+    const ab = [vb[0]-va[0], vb[1]-va[1], vb[2]-va[2]];
+    const ac = [vc[0]-va[0], vc[1]-va[1], vc[2]-va[2]];
+    const nx = ab[1]*ac[2]-ab[2]*ac[1];
+    const ny = ab[2]*ac[0]-ab[0]*ac[2];
+    const nz = ab[0]*ac[1]-ab[1]*ac[0];
+    // Light from upper-left-front
+    const lightDir = [-0.4, 0.6, 0.7];
+    const nm = Math.hypot(nx,ny,nz) || 1;
+    const dot = (nx/nm)*lightDir[0] + (ny/nm)*lightDir[1] + (nz/nm)*lightDir[2];
+    return { idx:[a,b,c], depth, nz, dot };
+  }).filter(f => f.nz > 0); // backface cull
+
+  // Sort back to front
+  faceData.sort((a,b) => a.depth - b.depth);
+
+  // Draw faces (filled, very translucent)
+  for (const {idx, dot} of faceData) {
+    const [a,b,c] = idx;
+    const pa = proj[a].p, pb = proj[b].p, pc = proj[c].p;
+    const brightness = Math.max(0, Math.min(1, (dot + 1) / 2));
+    const alpha = 0.04 + brightness * 0.12;
+
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.lineTo(pc.x, pc.y);
+    ctx.closePath();
+    ctx.fillStyle = FACE_COLOR + alpha + ')';
+    ctx.fill();
+  }
+
+  // Draw edges — z-clipped for depth feel
+  for (const [a, b] of EDGES) {
+    const pa = proj[a], pb = proj[b];
+    const avgZ = (pa.raw[2] + pb.raw[2]) / 2;
+    // Fade edges on the back side
+    const alpha = Math.max(0.06, Math.min(0.7, (avgZ + 1) * 0.35 + 0.1));
+
+    ctx.beginPath();
+    ctx.moveTo(pa.p.x, pa.p.y);
+    ctx.lineTo(pb.p.x, pb.p.y);
+    ctx.strokeStyle = EDGE_COLOR + alpha + ')';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  }
+
+  // Draw vertices — dots at each vert
+  for (const pv of proj) {
+    const alpha = Math.max(0.1, (pv.raw[2] + 1) * 0.25);
+    ctx.beginPath();
+    ctx.arc(pv.p.x, pv.p.y, 1.2, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(230,190,80,${alpha})`;
+    ctx.fill();
+  }
+
+  // Central glow dot (interior light)
+  const glowR = ctx.createRadialGradient(cx, cy, 1, cx, cy, 30);
+  glowR.addColorStop(0, 'rgba(200,160,50,0.35)');
+  glowR.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(cx, cy, 30, 0, Math.PI*2);
+  ctx.fillStyle = glowR;
+  ctx.fill();
+
+  requestAnimationFrame(render);
+}
+render();
+</script>
+</body>
+</html>

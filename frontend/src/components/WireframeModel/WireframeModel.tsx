@@ -36,6 +36,8 @@ import {
   BackSide,
   PerspectiveCamera,
   Mesh,
+  PointsMaterial,
+  Points,
 } from 'three';
 
 import type { QuaternionState } from '../../hooks/useQuaternion';
@@ -60,57 +62,96 @@ export interface WireframeModelProps {
   height:     number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LCG déterministe (même seed → même forme)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function makeLCG(seed: number): () => number {
-  let s = seed | 0;
-  return (): number => {
-    s = (Math.imul(s, 1664525) + 1013904223) | 0;
-    return (s >>> 0) / 0xffffffff;
+function buildDeformedGeometry(seed: number): BufferGeometry {
+  // LCG (Random Number Generator)
+  const rng = (s: number) => {
+    s = (s ^ (s << 13)) >>> 0;
+    s = (s ^ (s >> 17)) >>> 0;
+    s = (s ^ (s << 5)) >>> 0;
+    return s;
   };
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// buildDeformedGeometry
-// IcosahedronGeometry(1, 3) → 642 verts, 320 faces → déformation radiale LCG
-// ─────────────────────────────────────────────────────────────────────────────
+  let s = seed | 0;
+  const numVerts = 52;
+  const verts: number[][] = [];
 
-function buildDeformedGeometry(seed: number, deformAmp = 0.22): BufferGeometry {
-  const base    = new IcosahedronGeometry(1, 3);
-  const posAttr = base.getAttribute('position') as BufferAttribute;
-  const count   = posAttr.count;
-  const rand    = makeLCG(seed);
-  const cache   = new Map<string, number>();
-  const newPos  = new Float32Array(count * 3);
-
-  for (let i = 0; i < count; i++) {
-    const x = posAttr.getX(i);
-    const y = posAttr.getY(i);
-    const z = posAttr.getZ(i);
-
-    // Regroupe par direction normalisée → sommets voisins partagent la déformation
-    const len = Math.sqrt(x * x + y * y + z * z) || 1;
-    const key = `${(x / len).toFixed(3)},${(y / len).toFixed(3)},${(z / len).toFixed(3)}`;
-
-    let noise: number;
-    if (cache.has(key)) {
-      noise = cache.get(key)!;
-    } else {
-      noise  = 1 + (rand() - 0.5) * 2 * deformAmp; // basse fréquence
-      noise += (rand() - 0.5) * 0.06;               // deuxième octave légère
-      cache.set(key, noise);
-    }
-
-    newPos[i * 3    ] = x * noise;
-    newPos[i * 3 + 1] = y * noise;
-    newPos[i * 3 + 2] = z * noise;
+  for (let i = 0; i < numVerts; i++) {
+    s = rng(s + i * 1337);
+    const theta = ((s % 1000) / 1000) * Math.PI * 2;
+    s = rng(s);
+    const phi = Math.acos(2 * ((s % 1000) / 1000) - 1);
+    s = rng(s);
+    const r = 0.7 + ((s % 1000) / 1000) * 0.65;
+    // Low-frequency deformation for cratered look
+    const lf = 1.0 + 0.35 * Math.sin(theta * 2.1 + phi * 1.7) + 0.18 * Math.sin(theta * 4.3 - phi * 3.1);
+    
+    verts.push([
+      Math.sin(phi) * Math.cos(theta) * r * lf,
+      Math.sin(phi) * Math.sin(theta) * r * lf,
+      Math.cos(phi) * r * lf,
+    ]);
   }
 
-  const geom = base.clone();
-  geom.setAttribute('position', new BufferAttribute(newPos, 3));
+  // Build edges
+  const edges = new Set<string>();
+  for (let i = 0; i < verts.length; i++) {
+    const dists = verts.map((v, j) => ({
+      j,
+      d: Math.hypot(verts[i][0] - v[0], verts[i][1] - v[1], verts[i][2] - v[2])
+    })).filter(x => x.j !== i).sort((a, b) => a.d - b.d);
+    
+    for (let k = 0; k < Math.min(5, dists.length); k++) {
+      const key = [i, dists[k].j].sort((a, b) => a - b).join('-');
+      edges.add(key);
+    }
+  }
+  const edgeList = Array.from(edges).map(e => e.split('-').map(Number));
+
+  // Build faces
+  const adj: Record<number, Set<number>> = {};
+  for (const [a, b] of edgeList) {
+    if (!adj[a]) adj[a] = new Set();
+    if (!adj[b]) adj[b] = new Set();
+    adj[a].add(b);
+    adj[b].add(a);
+  }
+
+  const faces: number[][] = [];
+  for (const [a, b] of edgeList) {
+    for (const c of adj[a]) {
+      if (c !== b && adj[b].has(c)) {
+        faces.push([a, b, c]);
+      }
+    }
+  }
+
+  // Dedupe faces
+  const seen = new Set<string>();
+  const finalFaces = faces.filter(f => {
+    const k = f.slice().sort((a, b) => a - b).join('-');
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  // Construct BufferGeometry
+  const geom = new BufferGeometry();
+  
+  const positions = new Float32Array(verts.length * 3);
+  for (let i = 0; i < verts.length; i++) {
+    positions[i * 3]     = verts[i][0];
+    positions[i * 3 + 1] = verts[i][1];
+    positions[i * 3 + 2] = verts[i][2];
+  }
+  geom.setAttribute('position', new BufferAttribute(positions, 3));
+
+  const indices = [];
+  for (const f of finalFaces) {
+    indices.push(f[0], f[1], f[2]);
+  }
+  geom.setIndex(indices);
   geom.computeVertexNormals();
+
   return geom;
 }
 
@@ -144,8 +185,9 @@ interface AsteroidMeshProps {
 function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElement {
   const wireRef = useRef<Mesh>(null!);
   const faceRef = useRef<Mesh>(null!);
+  const pointsRef = useRef<Points>(null!);
 
-  const geometry   = useMemo(() => buildDeformedGeometry(asteroidId, 0.22), [asteroidId]);
+  const geometry   = useMemo(() => buildDeformedGeometry(asteroidId), [asteroidId]);
   const threeColor = useMemo(() => parseColor(color), [color]);
 
   // Matériau wireframe — MeshBasicMaterial (éclairage ignoré, toujours lisible)
@@ -159,15 +201,15 @@ function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElem
   // Matériau faces — remplissage léger pour la perception de volume
   const faceMat = useMemo(
     () => new MeshLambertMaterial({
-      color: threeColor, transparent: true, opacity: 0.07, side: FrontSide, depthWrite: false,
+      color: threeColor, transparent: true, opacity: 0.04, side: FrontSide, depthWrite: false,
     }),
     [threeColor],
   );
 
-  // Matériau halo intérieur (BackSide → visible depuis l'extérieur)
-  const glowMat = useMemo(
-    () => new MeshBasicMaterial({
-      color: threeColor, transparent: true, opacity: 0.12, side: BackSide, depthWrite: false,
+  // Matériau points (sommets lumineux)
+  const pointsMat = useMemo(
+    () => new PointsMaterial({
+      color: threeColor, size: 2.5, transparent: true, opacity: 0.9, sizeAttenuation: false, depthWrite: false,
     }),
     [threeColor],
   );
@@ -185,21 +227,20 @@ function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElem
     tq.current.multiply(dqY).multiply(dqX).multiply(dqZ).normalize();
     wireRef.current?.quaternion.copy(tq.current);
     faceRef.current?.quaternion.copy(tq.current);
+    pointsRef.current?.quaternion.copy(tq.current);
   });
 
   return (
-    <group>
+    <group scale={[0.6, 0.6, 0.6]}>
       {/* 1. Faces translucides — renderOrder 0 (fond) */}
       <mesh ref={faceRef} geometry={geometry} material={faceMat} renderOrder={0} />
 
       {/* 2. Wireframe par-dessus */}
       <mesh ref={wireRef} geometry={geometry} material={wireMat} renderOrder={1} />
 
-      {/* 3. Halo intérieur statique */}
-      <mesh renderOrder={2}>
-        <primitive object={new SphereGeometry(0.28, 16, 16)} />
-        <primitive object={glowMat} />
-      </mesh>
+      {/* 3. Points lumineux aux sommets */}
+      <points ref={pointsRef} geometry={geometry} material={pointsMat} renderOrder={2} />
+
     </group>
   );
 }
@@ -286,7 +327,6 @@ export default function WireframeModel({
       >
         <CameraSetup width={width} height={height} />
         <SceneLights  color={color} />
-        <HoloGrid     color={color} />
         <AsteroidMesh asteroidId={asteroidId} color={color} />
       </Canvas>
     </View>
