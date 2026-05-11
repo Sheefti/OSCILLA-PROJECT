@@ -204,3 +204,4 @@ Icosphère déformée procédurale rendue en SVG, tournant via quaternions purs.
 ## 📄 Licence
 
 MIT — voir [LICENSE](./LICENSE)
+g
