@@ -1,9 +1,3 @@
-/**
- * src/components/OrbitalRadar/OrbitalRadar.tsx
- * Radar orbital SVG animé — accepte désormais les astéroïdes en prop
- * pour supporter le changement de planète dynamiquement.
- */
-
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, TouchableWithoutFeedback } from 'react-native';
 import Svg, {

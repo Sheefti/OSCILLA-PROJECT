@@ -1,17 +1,3 @@
-/**
- * AsteroidInspector.tsx
- *
- * Écran d'analyse orbitale — layout tableau de bord.
- * Panneau gauche : données détaillées + Torino gauge.
- * Panneau droit  : Canvas R3F (astéroïde 3D) + HUD overlay.
- *
- * Dépendances :
- *   expo install @react-three/fiber @react-three/drei three
- *   expo install @expo-google-fonts/orbitron @expo-google-fonts/rajdhani
- *   expo install @expo-google-fonts/share-tech-mono
- *   expo install react-native-safe-area-context expo-router
- */
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -31,22 +17,10 @@ import { Colors } from '../theme/colors';
 import { AsteroidData } from '../theme/asteroids';
 import WireframeModel from '../components/WireframeModel/WireframeModel';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constantes polices
-// Dans _layout.tsx, charge-les avec useFonts() :
-//   import { Orbitron_900Black } from '@expo-google-fonts/orbitron';
-//   import { ShareTechMono_400Regular } from '@expo-google-fonts/share-tech-mono';
-//   import { Rajdhani_400Regular, Rajdhani_600SemiBold } from '@expo-google-fonts/rajdhani';
-// ─────────────────────────────────────────────────────────────────────────────
-
 const F_MONO = 'ShareTechMono_400Regular';
 const F_ORB  = 'Orbitron_900Black';
 const F_RAJ  = 'Rajdhani_400Regular';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types étendus
-// Étend AsteroidData avec les champs optionnels affichés sur l'écran
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface AsteroidInspectorData extends AsteroidData {
   /** Ex. "1.134 UA" */
@@ -73,10 +47,6 @@ export interface AsteroidInspectorData extends AsteroidData {
   torinoLevel?:      number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Palette locale
-// ─────────────────────────────────────────────────────────────────────────────
-
 const C = {
   bg:          '#000103',
   border:      'rgba(255,255,255,0.06)',
@@ -88,19 +58,12 @@ const C = {
   green:       '#2ecc71',
 } as const;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// resolveNameColor
-// ─────────────────────────────────────────────────────────────────────────────
-
 function resolveNameColor(asteroid: AsteroidInspectorData): string {
   if (asteroid.name === 'APOPHIS') return C.red;
   if (asteroid.alert)              return C.amber;
   return 'rgba(255,255,255,0.85)';
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// useBlink — Animated.Value qui clignote en step-end
-// ─────────────────────────────────────────────────────────────────────────────
 
 function useBlink(active: boolean): Animated.Value {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -118,9 +81,6 @@ function useBlink(active: boolean): Animated.Value {
   return opacity;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ScanLine — ligne horizontale descendante
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ScanLine(): React.ReactElement {
   const translateY = useRef(new Animated.Value(-2)).current;
@@ -153,9 +113,6 @@ function ScanLine(): React.ReactElement {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PulsingDot
-// ─────────────────────────────────────────────────────────────────────────────
 
 function PulsingDot({ color, size = 5 }: { color: string; size?: number }): React.ReactElement {
   const opacity = useRef(new Animated.Value(1)).current;
@@ -177,9 +134,6 @@ function PulsingDot({ color, size = 5 }: { color: string; size?: number }): Reac
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PulsingRing
-// ─────────────────────────────────────────────────────────────────────────────
 
 function PulsingRing({ color }: { color: string }): React.ReactElement {
   const scale   = useRef(new Animated.Value(1)).current;
@@ -211,9 +165,6 @@ function PulsingRing({ color }: { color: string }): React.ReactElement {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SectionHeader
-// ─────────────────────────────────────────────────────────────────────────────
 
 function SectionHeader({
   title,
@@ -230,9 +181,6 @@ function SectionHeader({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DataRow
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface DataRowProps {
   label:   string;
