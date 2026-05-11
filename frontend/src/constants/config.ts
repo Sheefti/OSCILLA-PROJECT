@@ -8,7 +8,7 @@
  *  Docker expose le backend sur le port 3000 de la machine hôte.
  *  Le mobile (Expo Go) doit pointer sur l'IP WiFi de la machine hôte. */
 export const API_BASE_URL = __DEV__
-  ? 'http://192.168.0.129:3000'  // IP WiFi local — docker-compose ports: 3000:3000 — à adapter si réseau différent
+  ? 'http://172.20.10.2:3000'  // IP WiFi local — docker-compose ports: 3000:3000 — à adapter si réseau différent
   : 'https://api.oscilla.app';  // ← URL de prod future (EAS Build)
 
 /** TTL du cache AsyncStorage en millisecondes (5 minutes) */
