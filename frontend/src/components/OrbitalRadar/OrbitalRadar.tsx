@@ -22,6 +22,7 @@ interface Props {
   asteroids:       PlanetAsteroidData[];
   planetColors:    [string, string, string]; // [col1, col2, col3] gradient planète
   accentRgb:       string;                  // ex: "0,229,255"
+  planetKey?:      string;                  // ex: "terre", "mars"
 }
 
 // ─── MESH 3D — icosphère déformée ────────────────────────────────────────────
@@ -134,7 +135,7 @@ function buildContinents(cx: number, cy: number, R: number): string[] {
 
 export default function OrbitalRadar({
   width, height, onAsteroidPress, selectedId,
-  asteroids, planetColors, accentRgb,
+  asteroids, planetColors, accentRgb, planetKey = 'terre',
 }: Props) {
   const CX = width/2, CY = height/2, PLANET_R = 32;
 
@@ -196,16 +197,34 @@ export default function OrbitalRadar({
       <View style={{ width, height }}>
         <Svg width={width} height={height}>
           <Defs>
-            <RadialGradient id="planetCore" cx="38%" cy="35%" r="68%">
-              <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.9"/>
-              <Stop offset="40%"  stopColor={pCol2} stopOpacity="1"/>
-              <Stop offset="100%" stopColor={pCol3} stopOpacity="1"/>
-            </RadialGradient>
-            <RadialGradient id="planetGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.18"/>
-              <Stop offset="55%"  stopColor={pCol2} stopOpacity="0.07"/>
-              <Stop offset="100%" stopColor={pCol3} stopOpacity="0"/>
-            </RadialGradient>
+            {planetKey === 'terre' ? (
+              <>
+                <RadialGradient id="planetCore" cx="35%" cy="30%" r="70%">
+                  <Stop offset="0%"   stopColor="#6ec6f5" stopOpacity="1"/>
+                  <Stop offset="30%"  stopColor="#1e78d4" stopOpacity="1"/>
+                  <Stop offset="70%"  stopColor="#0d3f8a" stopOpacity="1"/>
+                  <Stop offset="100%" stopColor="#071e4a" stopOpacity="1"/>
+                </RadialGradient>
+                <RadialGradient id="planetGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%"   stopColor="#4aa8ff" stopOpacity="0.14"/>
+                  <Stop offset="60%"  stopColor="#1a5bbf" stopOpacity="0.05"/>
+                  <Stop offset="100%" stopColor="#0a2050" stopOpacity="0"/>
+                </RadialGradient>
+              </>
+            ) : (
+              <>
+                <RadialGradient id="planetCore" cx="38%" cy="35%" r="68%">
+                  <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.9"/>
+                  <Stop offset="40%"  stopColor={pCol2} stopOpacity="1"/>
+                  <Stop offset="100%" stopColor={pCol3} stopOpacity="1"/>
+                </RadialGradient>
+                <RadialGradient id="planetGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0%"   stopColor={pCol1} stopOpacity="0.18"/>
+                  <Stop offset="55%"  stopColor={pCol2} stopOpacity="0.07"/>
+                  <Stop offset="100%" stopColor={pCol3} stopOpacity="0"/>
+                </RadialGradient>
+              </>
+            )}
             <ClipPath id="planetClip">
               <Circle cx={CX} cy={CY} r={PLANET_R}/>
             </ClipPath>
@@ -217,16 +236,7 @@ export default function OrbitalRadar({
               fill={`rgba(200,225,255,${s.op.toFixed(2)})`}/>
           ))}
 
-          {/* Grille radar */}
-          {[45,85,125,168].map((r, i) => (
-            <Circle key={`gr${r}`} cx={CX} cy={CY} r={r}
-              stroke={`rgba(${accentRgb},${(0.065-i*0.01).toFixed(3)})`}
-              strokeWidth={0.5} fill="none"/>
-          ))}
-          <Line x1={CX-195} y1={CY} x2={CX+195} y2={CY}
-            stroke={`rgba(${accentRgb},0.04)`} strokeWidth={0.5}/>
-          <Line x1={CX} y1={CY-195} x2={CX} y2={CY+195}
-            stroke={`rgba(${accentRgb},0.04)`} strokeWidth={0.5}/>
+
 
           {/* Orbites */}
           {asteroids.map((a, i) => {
@@ -250,22 +260,110 @@ export default function OrbitalRadar({
 
           {/* Planète centrale */}
           <Circle cx={CX} cy={CY} r={PLANET_R+35} fill="url(#planetGlow)"/>
-          <Circle cx={CX} cy={CY} r={PLANET_R+10} fill={`rgba(${accentRgb},0.06)`}/>
-          <Circle cx={CX} cy={CY} r={PLANET_R+6}  fill={`rgba(${accentRgb},0.09)`}/>
-          <Circle cx={CX} cy={CY} r={PLANET_R+3}  fill={`rgba(${accentRgb},0.12)`}/>
-          <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
-          <G clipPath="url(#planetClip)">
-            {continents.map((d, i) => (
-              <Path key={`ct${i}`} d={d} fill={`rgba(${accentRgb},0.35)`}/>
-            ))}
-            <Path
-              d={`M${CX-PLANET_R*.65},${CY-PLANET_R*.08} q${PLANET_R*.3},${-PLANET_R*.14} ${PLANET_R*.58},${PLANET_R*.06}`}
-              stroke="rgba(255,255,255,0.11)" strokeWidth={3} fill="none" strokeLinecap="round"/>
-          </G>
-          <Circle cx={CX-PLANET_R*.28} cy={CY-PLANET_R*.28} r={PLANET_R*.3}
-            fill="rgba(255,255,255,0.09)"/>
-          <Circle cx={CX} cy={CY} r={PLANET_R}
-            stroke={`rgba(${accentRgb},0.22)`} strokeWidth={1.5} fill="none"/>
+          {planetKey === 'terre' ? (
+            <>
+              {/* Halo atmosphérique subtil */}
+              <Circle cx={CX} cy={CY} r={PLANET_R+8} fill="rgba(30,90,200,0.04)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+4} fill="rgba(50,120,220,0.07)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+1.5} fill="rgba(80,150,240,0.12)"/>
+
+              {/* Corps — océan bleu profond */}
+              <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
+
+              <G clipPath="url(#planetClip)">
+                {/* Ombre nuit — côté droit */}
+                <Circle cx={CX+PLANET_R*0.68} cy={CY} r={PLANET_R}
+                  fill="rgba(0,4,18,0.42)"/>
+
+                {/* — CONTINENTS petits et précis — */}
+
+                {/* Europe / Asie ouest (petit bloc nord) */}
+                <Path d={`
+                  M${CX+PLANET_R*.04},${CY-PLANET_R*.50}
+                  c${PLANET_R*.10},${-PLANET_R*.04} ${PLANET_R*.22},${-PLANET_R*.02} ${PLANET_R*.26},${PLANET_R*.06}
+                  c${PLANET_R*.04},${PLANET_R*.08} ${-PLANET_R*.02},${PLANET_R*.14} ${-PLANET_R*.10},${PLANET_R*.16}
+                  c${-PLANET_R*.10},${PLANET_R*.02} ${-PLANET_R*.20},${-PLANET_R*.04} ${-PLANET_R*.22},${-PLANET_R*.12}
+                  c${-PLANET_R*.02},${-PLANET_R*.06} ${PLANET_R*.06},${-PLANET_R*.10} ${PLANET_R*.06},${-PLANET_R*.10} Z
+                `} fill="rgba(48,95,52,0.92)"/>
+
+                {/* Asie centrale / est */}
+                <Path d={`
+                  M${CX+PLANET_R*.26},${CY-PLANET_R*.48}
+                  c${PLANET_R*.14},${-PLANET_R*.06} ${PLANET_R*.28},${PLANET_R*.00} ${PLANET_R*.28},${PLANET_R*.10}
+                  c${PLANET_R*.00},${PLANET_R*.10} ${-PLANET_R*.10},${PLANET_R*.16} ${-PLANET_R*.22},${PLANET_R*.14}
+                  c${-PLANET_R*.12},${-PLANET_R*.02} ${-PLANET_R*.18},${-PLANET_R*.10} ${-PLANET_R*.14},${-PLANET_R*.18}
+                  c${PLANET_R*.04},${-PLANET_R*.06} ${PLANET_R*.08},${-PLANET_R*.06} ${PLANET_R*.08},${-PLANET_R*.06} Z
+                `} fill="rgba(44,88,48,0.88)"/>
+
+                {/* Afrique — forme effilée vers le bas */}
+                <Path d={`
+                  M${CX+PLANET_R*.10},${CY-PLANET_R*.08}
+                  c${PLANET_R*.08},${-PLANET_R*.04} ${PLANET_R*.16},${PLANET_R*.00} ${PLANET_R*.16},${PLANET_R*.10}
+                  c${PLANET_R*.00},${PLANET_R*.12} ${-PLANET_R*.04},${PLANET_R*.24} ${-PLANET_R*.10},${PLANET_R*.32}
+                  c${-PLANET_R*.04},${PLANET_R*.06} ${-PLANET_R*.10},${PLANET_R*.06} ${-PLANET_R*.14},${PLANET_R*.00}
+                  c${-PLANET_R*.06},${-PLANET_R*.10} ${-PLANET_R*.06},${-PLANET_R*.24} ${-PLANET_R*.02},${-PLANET_R*.34}
+                  c${PLANET_R*.04},${-PLANET_R*.08} ${PLANET_R*.10},${-PLANET_R*.08} ${PLANET_R*.10},${-PLANET_R*.08} Z
+                `} fill="rgba(56,104,46,0.85)"/>
+
+                {/* Amérique du Nord — compact */}
+                <Path d={`
+                  M${CX-PLANET_R*.48},${CY-PLANET_R*.38}
+                  c${PLANET_R*.08},${-PLANET_R*.08} ${PLANET_R*.18},${-PLANET_R*.06} ${PLANET_R*.20},${PLANET_R*.04}
+                  c${PLANET_R*.02},${PLANET_R*.10} ${-PLANET_R*.02},${PLANET_R*.22} ${-PLANET_R*.08},${PLANET_R*.28}
+                  c${-PLANET_R*.08},${PLANET_R*.08} ${-PLANET_R*.18},${PLANET_R*.06} ${-PLANET_R*.20},${-PLANET_R*.04}
+                  c${-PLANET_R*.04},${-PLANET_R*.12} ${PLANET_R*.00},${-PLANET_R*.24} ${PLANET_R*.08},${-PLANET_R*.28} Z
+                `} fill="rgba(52,100,50,0.83)"/>
+
+                {/* Amérique du Sud */}
+                <Path d={`
+                  M${CX-PLANET_R*.34},${CY+PLANET_R*.10}
+                  c${PLANET_R*.08},${-PLANET_R*.04} ${PLANET_R*.14},${PLANET_R*.02} ${PLANET_R*.12},${PLANET_R*.14}
+                  c${-PLANET_R*.02},${PLANET_R*.14} ${-PLANET_R*.08},${PLANET_R*.24} ${-PLANET_R*.14},${PLANET_R*.22}
+                  c${-PLANET_R*.08},${-PLANET_R*.02} ${-PLANET_R*.10},${-PLANET_R*.14} ${-PLANET_R*.08},${-PLANET_R*.26}
+                  c${PLANET_R*.02},${-PLANET_R*.10} ${PLANET_R*.10},${-PLANET_R*.10} ${PLANET_R*.10},${-PLANET_R*.10} Z
+                `} fill="rgba(48,96,46,0.80)"/>
+
+                {/* Australie — petit bloc */}
+                <Path d={`
+                  M${CX+PLANET_R*.40},${CY+PLANET_R*.26}
+                  c${PLANET_R*.08},${-PLANET_R*.02} ${PLANET_R*.14},${PLANET_R*.04} ${PLANET_R*.12},${PLANET_R*.12}
+                  c${-PLANET_R*.02},${PLANET_R*.08} ${-PLANET_R*.10},${PLANET_R*.10} ${-PLANET_R*.16},${PLANET_R*.06}
+                  c${-PLANET_R*.06},${-PLANET_R*.06} ${-PLANET_R*.04},${-PLANET_R*.14} ${PLANET_R*.04},${-PLANET_R*.18} Z
+                `} fill="rgba(60,106,44,0.78)"/>
+
+
+              </G>
+
+
+
+              {/* Anneau atmosphérique — très fin */}
+              <Circle cx={CX} cy={CY} r={PLANET_R}
+                stroke="rgba(140,210,255,0.40)" strokeWidth={1} fill="none"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+2.5}
+                stroke="rgba(100,175,255,0.16)" strokeWidth={1.5} fill="none"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+5}
+                stroke="rgba(70,140,230,0.07)" strokeWidth={2} fill="none"/>
+            </>
+          ) : (
+            <>
+              <Circle cx={CX} cy={CY} r={PLANET_R+10} fill={`rgba(${accentRgb},0.06)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+6}  fill={`rgba(${accentRgb},0.09)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R+3}  fill={`rgba(${accentRgb},0.12)`}/>
+              <Circle cx={CX} cy={CY} r={PLANET_R} fill="url(#planetCore)"/>
+              <G clipPath="url(#planetClip)">
+                {continents.map((d, i) => (
+                  <Path key={`ct${i}`} d={d} fill={`rgba(${accentRgb},0.28)`}/>
+                ))}
+                <Path
+                  d={`M${CX-PLANET_R*.65},${CY-PLANET_R*.08} q${PLANET_R*.3},${-PLANET_R*.14} ${PLANET_R*.58},${PLANET_R*.06}`}
+                  stroke="rgba(255,255,255,0.11)" strokeWidth={3} fill="none" strokeLinecap="round"/>
+              </G>
+              <Circle cx={CX-PLANET_R*.28} cy={CY-PLANET_R*.28} r={PLANET_R*.3}
+                fill="rgba(255,255,255,0.09)"/>
+              <Circle cx={CX} cy={CY} r={PLANET_R}
+                stroke={`rgba(${accentRgb},0.22)`} strokeWidth={1.5} fill="none"/>
+            </>
+          )}
 
           {/* Anneaux orbitaux */}
           {[0,1,2].map(i => {

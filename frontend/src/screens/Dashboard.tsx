@@ -213,6 +213,7 @@ export default function Dashboard() {
               asteroids={asteroids}
               planetColors={currentPlanet.planetColor}
               accentRgb={currentPlanet.accentRgb}
+              planetKey={selectedPlanetKey}
             />
           )}
 
