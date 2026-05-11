@@ -4,8 +4,9 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   ViewToken,
   StatusBar,
   Platform,
@@ -13,18 +14,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
   Easing,
-  FadeIn,
   FadeInDown,
   ZoomIn,
 } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 
-const { width: W, height: H } = Dimensions.get('window');
+
 
 // ─────────────────────────────────────────────
 // TOKENS
@@ -272,12 +268,22 @@ const AnimText = ({ children, delay = 0, style }: { children: React.ReactNode; d
 // ─────────────────────────────────────────────
 // SINGLE SLIDE
 // ─────────────────────────────────────────────
-const SlideItem = React.memo(({ item, isActive, onFinish }: { item: SlideData; isActive: boolean; onFinish?: () => void }) => {
+const SlideItem = React.memo(({ item, isActive, onFinish, screenW, screenH }: {
+  item: SlideData;
+  isActive: boolean;
+  onFinish?: () => void;
+  screenW: number;
+  screenH: number;
+}) => {
+  const TOPBAR_H = 30;
+  const BOTBAR_H = 24;
+  const NAV_H    = 40;
+  const slideH   = screenH - TOPBAR_H - BOTBAR_H - NAV_H;
   const key = isActive ? `active-${item.id}` : item.id;
   return (
-    <View style={[s.slide]}>
+    <View style={[s.slide, { width: screenW, height: slideH }]}>
       {/* Visual half */}
-      <View style={s.visualCol}>
+      <View style={[s.visualCol, { width: screenW * 0.48 }]}>
         <WebView
           key={item.id}
           source={{ html: item.html }}
@@ -304,8 +310,13 @@ const SlideItem = React.memo(({ item, isActive, onFinish }: { item: SlideData; i
       {/* Divider */}
       <View style={s.divider} />
 
-      {/* Text half */}
-      <View style={s.textCol} key={key}>
+      {/* Text half — scrollable pour éviter que le CTA soit rogné */}
+      <ScrollView
+        style={[s.textColScroll, { height: slideH }]}
+        contentContainerStyle={s.textCol}
+        key={key}
+        showsVerticalScrollIndicator={false}
+      >
         <AnimText delay={80} style={s.slideNum}>{item.index}</AnimText>
 
         <Animated.View entering={FadeInDown.delay(160).duration(450)}>
@@ -358,7 +369,7 @@ const SlideItem = React.memo(({ item, isActive, onFinish }: { item: SlideData; i
             </TouchableOpacity>
           </Animated.View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 });
@@ -367,6 +378,7 @@ const SlideItem = React.memo(({ item, isActive, onFinish }: { item: SlideData; i
 // MAIN SCREEN
 // ─────────────────────────────────────────────
 export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }) {
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const [activeIndex, setActiveIndex] = useState(0);
   const flatRef = useRef<FlatList>(null);
 
@@ -396,8 +408,8 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
   };
 
   const renderItem = useCallback(({ item, index }: { item: SlideData; index: number }) => (
-    <SlideItem item={item} isActive={index === activeIndex} onFinish={onFinish} />
-  ), [activeIndex, onFinish]);
+    <SlideItem item={item} isActive={index === activeIndex} onFinish={onFinish} screenW={screenW} screenH={screenH} />
+  ), [activeIndex, onFinish, screenW, screenH]);
 
   const keyExtractor = (item: SlideData) => item.id;
 
@@ -418,11 +430,6 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
         pointerEvents="none"
       />
 
-      {/* Corner decorations */}
-      <View style={[s.corner, s.cTL]} pointerEvents="none" />
-      <View style={[s.corner, s.cTR]} pointerEvents="none" />
-      <View style={[s.corner, s.cBL]} pointerEvents="none" />
-      <View style={[s.corner, s.cBR]} pointerEvents="none" />
 
       {/* TOP BAR */}
       <View style={s.topbar}>
@@ -442,13 +449,16 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
         keyExtractor={keyExtractor}
         horizontal
         pagingEnabled
+        snapToInterval={screenW}
+        snapToAlignment="start"
+        decelerationRate="fast"
         showsHorizontalScrollIndicator={false}
         bounces={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         style={s.flatlist}
         contentContainerStyle={{ alignItems: 'stretch' }}
-        getItemLayout={(_, index) => ({ length: W, offset: W * index, index })}
+        getItemLayout={(_, index) => ({ length: screenW, offset: screenW * index, index })}
       />
 
       {/* NAVIGATION */}
@@ -493,8 +503,9 @@ export default function OnboardingScreen({ onFinish }: { onFinish?: () => void }
 // ─────────────────────────────────────────────
 const TOPBAR_H = 30;
 const BOTBAR_H = 24;
-const NAV_H = 40;
-const SLIDE_H = H - TOPBAR_H - BOTBAR_H - NAV_H;
+const NAV_H    = 40;
+// Note: SLIDE_H est maintenant calculé dynamiquement dans SlideItem
+// en fonction des dimensions réelles de l'écran (réactif aux rotations).
 
 const s = StyleSheet.create({
   root: {
@@ -573,17 +584,14 @@ const s = StyleSheet.create({
     zIndex: 5,
   },
 
-  // SLIDE
+  // SLIDE — width et height passés en inline style depuis SlideItem (dynamiques)
   slide: {
-    width: W,
-    height: SLIDE_H,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
 
-  // VISUAL
+  // VISUAL — width passé en inline style depuis SlideItem (screenW * 0.48)
   visualCol: {
-    width: W * 0.48,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -599,13 +607,15 @@ const s = StyleSheet.create({
     marginVertical: 20,
   },
 
-  // TEXT
-  textCol: {
+  // TEXT COLUMN (ScrollView wrapper + content)
+  textColScroll: {
     flex: 1,
-    justifyContent: 'center',
+  },
+  textCol: {
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 32,
     gap: 0,
+    flexGrow: 1,
   },
   slideNum: {
     fontSize: 7,

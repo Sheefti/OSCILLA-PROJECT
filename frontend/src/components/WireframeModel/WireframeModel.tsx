@@ -119,8 +119,17 @@ function buildDeformedGeometry(seed: number, deformAmp = 0.22): BufferGeometry {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function parseColor(hex: string): Color {
-  try   { return new Color(hex); }
-  catch { return new Color('#c8a84b'); }
+  try {
+    // Si la couleur est au format rgba(r,g,b,a), on la convertit en rgb(r,g,b)
+    // car THREE.Color ne supporte pas le canal alpha (cela génère un warning).
+    if (hex.startsWith('rgba')) {
+      const rgb = hex.replace(/rgba?(\([^,]+,[^,]+,[^,]+),[^)]+\)/, 'rgb$1)');
+      return new Color(rgb);
+    }
+    return new Color(hex);
+  } catch {
+    return new Color('#c8a84b');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

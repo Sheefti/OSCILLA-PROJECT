@@ -144,7 +144,22 @@ export default function Dashboard() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   function handleAsteroidPress(a: PlanetAsteroidData) {
     setSelectedAsteroid(prev => prev?.id === a.id ? null : a);
-    router.push({ pathname: '/radar/details', params: { id: String(a.id) } });
+    // Passe l'objet complet sérialisé vers neo-details pour afficher
+    // exactement l'astéroïde cliqué (pas une correspondance par ID statique)
+    router.push({
+      pathname: '/radar/neo-details',
+      params: { data: JSON.stringify({
+        id:    String(a.id),
+        name:  a.name,
+        isHazardous: a.alert,
+        diameterKm:  { min: 0, max: parseFloat(a.diam?.replace(/[^0-9.]/g, '') ?? '0') || 0 },
+        velocity:    { kmPerHour: parseFloat(a.vel ?? '0') * 3600 },
+        missDistance:{ km: parseFloat(a.dist ?? '0') * 149_597_870.7, lunar: parseFloat(a.dist ?? '0') * 389.17 },
+        closeApproachDate: null,
+        orbitingBodies: [],
+        nasaUrl: '',
+      })},
+    });
   }
 
   const currentPlanet = PLANETS[selectedPlanetKey];

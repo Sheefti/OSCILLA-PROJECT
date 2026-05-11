@@ -433,7 +433,7 @@ export default function AsteroidInspector({
         {/* Bouton retour */}
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/radar/list')}
           activeOpacity={0.6}
         >
           <Text style={styles.backText}>{'< CATALOGUE'}</Text>

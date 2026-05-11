@@ -67,7 +67,7 @@ const formatNeo = (neo, targetBody = null) => {
  * @param {number} size - Nombre d'éléments par page (max 20)
  */
 const fetchAsteroids = async (page = 0, size = 20) => {
-  const response = await axios.get(`${NASA_BASE_URL}/neo/rest/v1/neo/browse`, {
+  const response = await axios.get(`${NASA_BASE_URL}/neo/browse`, {
     params: { api_key: NASA_API_KEY, page, size },
     timeout: 10000,
   });
@@ -98,7 +98,7 @@ const fetchAsteroidsByBody = async (body, size = 20) => {
   let page = 0;
 
   while (results.length < size && page < MAX_PAGES) {
-    const response = await axios.get(`${NASA_BASE_URL}/neo/rest/v1/neo/browse`, {
+    const response = await axios.get(`${NASA_BASE_URL}/neo/browse`, {
       params: { api_key: NASA_API_KEY, page, size: 20 },
       timeout: 12000,
     });
