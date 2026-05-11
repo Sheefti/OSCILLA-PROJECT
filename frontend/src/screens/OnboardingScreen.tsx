@@ -310,13 +310,8 @@ const SlideItem = React.memo(({ item, isActive, onFinish, screenW, screenH }: {
       {/* Divider */}
       <View style={s.divider} />
 
-      {/* Text half — scrollable pour éviter que le CTA soit rogné */}
-      <ScrollView
-        style={[s.textColScroll, { height: slideH }]}
-        contentContainerStyle={s.textCol}
-        key={key}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Text half */}
+      <View style={s.textCol} key={key}>
         <AnimText delay={80} style={s.slideNum}>{item.index}</AnimText>
 
         <Animated.View entering={FadeInDown.delay(160).duration(450)}>
@@ -369,7 +364,7 @@ const SlideItem = React.memo(({ item, isActive, onFinish, screenW, screenH }: {
             </TouchableOpacity>
           </Animated.View>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 });
@@ -607,15 +602,12 @@ const s = StyleSheet.create({
     marginVertical: 20,
   },
 
-  // TEXT COLUMN (ScrollView wrapper + content)
-  textColScroll: {
-    flex: 1,
-  },
   textCol: {
-    paddingHorizontal: 18,
-    paddingVertical: 32,
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 0,
     gap: 0,
-    flexGrow: 1,
   },
   slideNum: {
     fontSize: 7,
@@ -629,7 +621,7 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: C.w,
     letterSpacing: 3,
-    lineHeight: 32,
+    lineHeight: 28,
     fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif-condensed',
   },
   titleDim: {
@@ -637,16 +629,16 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(221,221,213,0.45)',
     letterSpacing: 3,
-    lineHeight: 34,
-    marginBottom: 12,
+    lineHeight: 30,
+    marginBottom: 4,
     fontFamily: Platform.OS === 'ios' ? 'Arial' : 'sans-serif-condensed',
   },
   desc: {
     fontSize: 9,
     letterSpacing: 1.5,
     color: C.wDim,
-    lineHeight: 17,
-    marginBottom: 14,
+    lineHeight: 15,
+    marginBottom: 8,
     fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
 
@@ -687,12 +679,12 @@ const s = StyleSheet.create({
   },
 
   // MODULE LIST
-  mlist: { marginTop: 8, gap: 0 },
+  mlist: { marginTop: 4, gap: 0 },
   mrow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: C.wGhost,
   },
@@ -711,12 +703,12 @@ const s = StyleSheet.create({
 
   // CTA
   cta: {
-    marginTop: 14,
+    marginTop: 16,
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderColor: C.wDim,
     paddingHorizontal: 18,
-    paddingVertical: 9,
+    paddingVertical: 8,
   },
   ctaText: {
     fontSize: 8,
