@@ -570,7 +570,7 @@ export default function NeoListScreen() {
       : 'La liste est vide. Tire vers le bas pour actualiser.';
 
   return (
-    <SafeAreaView style={s.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'bottom', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       {/* ── Topbar ── */}
@@ -579,24 +579,13 @@ export default function NeoListScreen() {
           <Text style={s.backText}>◀  RADAR</Text>
         </TouchableOpacity>
 
-        <Text style={s.topTitle}>OSCILLA · CATALOGUE NEO</Text>
+        <Text style={s.topTitle}>OSCILLA · CATALOGUE</Text>
 
         <View style={s.topRight}>
-          {page && (
-            <Text style={s.topMeta}>
-              {'PAGE '}
-              <Text style={s.topMetaVal}>{(page.number ?? 0) + 1}</Text>
-              {' / '}{page.totalPages ?? '—'}
-            </Text>
-          )}
           <View style={[s.liveDot, { backgroundColor: error ? C.red : C.green }]} />
-          <Text style={s.topMeta}>{error ? 'HORS LIGNE' : 'NASA · NEOWS'}</Text>
+          <Text style={s.topMeta}>{error ? 'HORS LIGNE' : 'SYSTÈME NOMINAL'}</Text>
         </View>
       </View>
-
-      {/* HUD corners */}
-      <View style={[s.hc, s.hcTL]} /><View style={[s.hc, s.hcTR]} />
-      <View style={[s.hc, s.hcBL]} /><View style={[s.hc, s.hcBR]} />
 
       {/* ── Corps ── */}
       {loading ? (
@@ -642,23 +631,6 @@ export default function NeoListScreen() {
         />
       )}
 
-      {/* ── Footer ── */}
-      <View style={s.footer}>
-        <TouchableOpacity style={s.pgBtn} onPress={refresh} disabled={refreshing}>
-          <Text style={s.pgBtnText}>{refreshing ? '…' : '◀'}</Text>
-        </TouchableOpacity>
-        <Text style={s.pgInfo}>
-          {'PAGE '}
-          <Text style={s.pgInfoVal}>{page ? (page.number ?? 0) + 1 : '—'}</Text>
-          {' / '}{page?.totalPages ?? '—'}
-        </Text>
-        <TouchableOpacity style={s.pgBtn}>
-          <Text style={s.pgBtnText}>▶</Text>
-        </TouchableOpacity>
-        <Text style={s.ftRight}>
-          {filtered.length} / {asteroids.length} OBJETS · {activeStatus !== 'TOUS' || activeBody !== 'TOUS' ? 'FILTRE ACTIF' : 'TOUS'}
-        </Text>
-      </View>
     </SafeAreaView>
   );
 }
