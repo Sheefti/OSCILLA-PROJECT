@@ -27,7 +27,6 @@ import {
   BufferAttribute,
   Float32BufferAttribute,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   LineBasicMaterial,
   Color,
   Quaternion as ThreeQuaternion,
@@ -38,9 +37,8 @@ import {
   Mesh,
   PointsMaterial,
   Points,
+  MeshLambertMaterial,
 } from 'three';
-
-import type { QuaternionState } from '../../hooks/useQuaternion';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -49,13 +47,6 @@ import type { QuaternionState } from '../../hooks/useQuaternion';
 export interface WireframeModelProps {
   /** Seed de déformation → forme unique et déterministe par astéroïde */
   asteroidId: number;
-  /**
-   * Quaternion issu du hook useQuaternion (RN side).
-   * Reçu pour compatibilité de signature — la rotation 3D est gérée par
-   * useFrame à l'intérieur du Canvas (60 fps natifs, sans re-render React).
-   * Les euler angles sont affichés dans le HUD natif de AsteroidInspector.
-   */
-  rotation:   QuaternionState;
   /** Couleur hex : '#c8a84b' (amber) | '#cc3333' (red) | '#ffffff' */
   color:      string;
   width:      number;
@@ -183,30 +174,27 @@ interface AsteroidMeshProps {
 }
 
 function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElement {
-  const wireRef = useRef<Mesh>(null!);
-  const faceRef = useRef<Mesh>(null!);
-  const pointsRef = useRef<Points>(null!);
+  const wireRef   = useRef<Mesh>(null);
+  const faceRef   = useRef<Mesh>(null);
+  const pointsRef = useRef<Points>(null);
 
   const geometry   = useMemo(() => buildDeformedGeometry(asteroidId), [asteroidId]);
   const threeColor = useMemo(() => parseColor(color), [color]);
 
-  // Matériau wireframe — MeshBasicMaterial (éclairage ignoré, toujours lisible)
   const wireMat = useMemo(
     () => new MeshBasicMaterial({
-      color: threeColor, wireframe: true, transparent: true, opacity: 0.55, depthWrite: false,
+      color: threeColor, wireframe: true, transparent: true, opacity: 0.6, depthWrite: false,
     }),
     [threeColor],
   );
 
-  // Matériau faces — remplissage léger pour la perception de volume
   const faceMat = useMemo(
     () => new MeshLambertMaterial({
-      color: threeColor, transparent: true, opacity: 0.04, side: FrontSide, depthWrite: false,
+      color: threeColor, transparent: true, opacity: 0.12, side: FrontSide, depthWrite: false,
     }),
     [threeColor],
   );
 
-  // Matériau points (sommets lumineux)
   const pointsMat = useMemo(
     () => new PointsMaterial({
       color: threeColor, size: 2.5, transparent: true, opacity: 0.9, sizeAttenuation: false, depthWrite: false,
@@ -214,33 +202,23 @@ function AsteroidMesh({ asteroidId, color }: AsteroidMeshProps): React.ReactElem
     [threeColor],
   );
 
-  // Quaternion Three.js mutable — pas de re-render à chaque frame
   const tq = useRef(new ThreeQuaternion());
-
-  // Delta-quaternions constants (vitesses en rad/frame @ 60 fps)
   const dqY = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(0, 1, 0), 0.005),  []);
   const dqX = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.0018), []);
   const dqZ = useMemo(() => new ThreeQuaternion().setFromAxisAngle(new Vector3(0, 0, 1), 0.0009), []);
 
-  // Boucle 60 fps — composition quaternion puis synchronisation des meshes
   useFrame(() => {
     tq.current.multiply(dqY).multiply(dqX).multiply(dqZ).normalize();
-    wireRef.current?.quaternion.copy(tq.current);
-    faceRef.current?.quaternion.copy(tq.current);
-    pointsRef.current?.quaternion.copy(tq.current);
+    if (wireRef.current)   wireRef.current.quaternion.copy(tq.current);
+    if (faceRef.current)   faceRef.current.quaternion.copy(tq.current);
+    if (pointsRef.current) pointsRef.current.quaternion.copy(tq.current);
   });
 
   return (
     <group scale={[0.6, 0.6, 0.6]}>
-      {/* 1. Faces translucides — renderOrder 0 (fond) */}
       <mesh ref={faceRef} geometry={geometry} material={faceMat} renderOrder={0} />
-
-      {/* 2. Wireframe par-dessus */}
       <mesh ref={wireRef} geometry={geometry} material={wireMat} renderOrder={1} />
-
-      {/* 3. Points lumineux aux sommets */}
       <points ref={pointsRef} geometry={geometry} material={pointsMat} renderOrder={2} />
-
     </group>
   );
 }
@@ -262,7 +240,7 @@ function SceneLights({ color }: { color: string }): React.ReactElement {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HoloGrid — grille de fond holographique (lineSegments)
+// CameraSetup
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HoloGrid({ color }: { color: string }): React.ReactElement {
@@ -313,8 +291,6 @@ export default function WireframeModel({
   color,
   width,
   height,
-  // rotation : reçu pour compatibilité de signature mais non transmis au Canvas.
-  // useFrame gère sa propre boucle 60 fps indépendante du thread JS React Native.
 }: WireframeModelProps): React.ReactElement {
   return (
     <View style={[StyleSheet.absoluteFill, styles.container]}>
@@ -326,7 +302,7 @@ export default function WireframeModel({
         }}
       >
         <CameraSetup width={width} height={height} />
-        <SceneLights  color={color} />
+        <SceneLights color={color} />
         <AsteroidMesh asteroidId={asteroidId} color={color} />
       </Canvas>
     </View>

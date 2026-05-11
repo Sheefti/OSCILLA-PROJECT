@@ -543,7 +543,13 @@ export default function NeoListScreen() {
       <AsteroidCard
         item={item}
         selected={selectedId === item.id}
-        onSelect={() => setSelectedId(item.id)}
+        onSelect={() => {
+          setSelectedId(item.id);
+          router.push({
+            pathname: '/radar/neo-details',
+            params: { data: JSON.stringify(item) },
+          });
+        }}
       />
     ),
     [selectedId],

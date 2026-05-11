@@ -29,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors } from '../theme/colors';
 import { AsteroidData } from '../theme/asteroids';
-import { useQuaternion } from '../hooks/useQuaternion';
 import WireframeModel from '../components/WireframeModel/WireframeModel';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -361,30 +360,42 @@ interface AsteroidInspectorProps {
   asteroid: AsteroidInspectorData;
 }
 
-export default function AsteroidInspector({
-  asteroid,
-}: AsteroidInspectorProps): React.ReactElement {
-  const [panelSize, setPanelSize] = useState({ width: 0, height: 0 });
+// ── Composant isolé pour la rotation afin d'éviter le re-render massif ──────
+function RotationTextOverlay(): React.ReactElement {
   const [rotAngles, setRotAngles] = useState({ roll: 0, pitch: 0, yaw: 0 });
 
-  // Hook quaternion — vitesses angulaires en radians/frame (≈ 60 fps)
-  const rotation      = useQuaternion(0.10, 0.25, 0.06);
-  const nameColor     = resolveNameColor(asteroid);
-  const isAlert       = !!asteroid.alert;
-  const isPHO         = isAlert || asteroid.name === 'APOPHIS';
-  const hasDimensions = panelSize.width > 0 && panelSize.height > 0;
-
-  // Accumule les angles Euler pour l'affichage HUD (affichage uniquement)
   useEffect(() => {
+    // requestAnimationFrame est plus performant que setInterval pour l'UI,
+    // mais pour ne pas surcharger la boucle R3F, on garde un intervalle 
+    // ou mieux : on le ralentit à 30fps (33ms) car c'est juste un texte HUD.
     const id = setInterval(() => {
       setRotAngles(prev => ({
         roll:  (prev.roll  + (0.0009 * 180) / Math.PI) % 360,
         pitch: (prev.pitch + (0.0018 * 180) / Math.PI) % 360,
         yaw:   (prev.yaw   + (0.005  * 180) / Math.PI) % 360,
       }));
-    }, 16);
+    }, 66);
     return () => clearInterval(id);
   }, []);
+
+  return (
+    <View style={styles.scanBR}>
+      <Text style={styles.scanText}>ROT. AUTO · Q-SPACE</Text>
+      <Text style={styles.scanText}>
+        {`ROLL ${rotAngles.roll.toFixed(1)}°  PITCH ${rotAngles.pitch.toFixed(1)}°  YAW ${rotAngles.yaw.toFixed(1)}°`}
+      </Text>
+    </View>
+  );
+}
+
+export default function AsteroidInspector({
+  asteroid,
+}: AsteroidInspectorProps): React.ReactElement {
+  const [panelSize, setPanelSize] = useState({ width: 0, height: 0 });
+  const nameColor     = resolveNameColor(asteroid);
+  const isAlert       = !!asteroid.alert;
+  const isPHO         = isAlert || asteroid.name === 'APOPHIS';
+  const hasDimensions = panelSize.width > 0 && panelSize.height > 0;
 
   function onVizLayout(e: LayoutChangeEvent): void {
     const { width, height } = e.nativeEvent.layout;
@@ -559,16 +570,6 @@ export default function AsteroidInspector({
                 <TorinoGauge level={torinoLevel} color={nameColor} />
               </View>
             )}
-
-            {/* ── QUATERNION LIVE ── */}
-            <View style={styles.dataSection}>
-              <SectionHeader title="QUATERNION · LIVE" color={nameColor + 'BB'} />
-              <DataRow label="W" value={rotation.q.w.toFixed(4)} accent={nameColor} />
-              <DataRow label="X" value={rotation.q.x.toFixed(4)} accent={nameColor} />
-              <DataRow label="Y" value={rotation.q.y.toFixed(4)} accent={nameColor} />
-              <DataRow label="Z" value={rotation.q.z.toFixed(4)} accent={nameColor} />
-            </View>
-
           </ScrollView>
         </View>
 
@@ -582,7 +583,6 @@ export default function AsteroidInspector({
             {hasDimensions && (
               <WireframeModel
                 asteroidId={asteroid.id}
-                rotation={rotation}
                 color={nameColor}
                 width={panelSize.width}
                 height={panelSize.height}
@@ -609,13 +609,8 @@ export default function AsteroidInspector({
               {`${panelSize.width.toFixed(0)} × ${panelSize.height.toFixed(0)} px`}
             </Text>
 
-            {/* Bas-droite : rotation Q-SPACE */}
-            <View style={styles.scanBR}>
-              <Text style={styles.scanText}>ROT. AUTO · Q-SPACE</Text>
-              <Text style={styles.scanText}>
-                {`ROLL ${rotAngles.roll.toFixed(1)}°  PITCH ${rotAngles.pitch.toFixed(1)}°  YAW ${rotAngles.yaw.toFixed(1)}°`}
-              </Text>
-            </View>
+            {/* Bas-droite : rotation Q-SPACE isolée pour performances */}
+            <RotationTextOverlay />
 
             {/* Ligne lumineuse en haut du panel */}
             <View style={styles.vizTopLine} />
